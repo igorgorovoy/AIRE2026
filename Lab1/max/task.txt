@@ -1,0 +1,2 @@
+Макс:
+1. Виконати завдання досвідчених але з kagent gateway API https://agentgateway.dev/docs/kubernetes/main/
