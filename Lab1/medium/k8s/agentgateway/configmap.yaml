@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentgateway-config
+  namespace: agentgateway-system
+  labels:
+    app: agentgateway
+    lab: AIRE2026
+data:
+  config.yaml: |
+    # yaml-language-server: $schema=https://agentgateway.dev/schema/config
+    binds:
+      - port: 3000
+        listeners:
+          - name: AIRE2026
+            routes:
+
+              - name: anthropic
+                matches:
+                  - path:
+                      pathPrefix: /
+                    headers:
+                      - name: x-provider
+                        value:
+                          exact: anthropic
+                backends:
+                  - ai:
+                      name: anthropic
+                      provider:
+                        anthropic:
+                          model: claude-3-5-haiku-20241022
+                policies:
+                  cors:
+                    allowOrigins: ["*"]
+                    allowHeaders: ["*"]
+                  backendAuth:
+                    key: "$ANTHROPIC_API_KEY"
+
+              - name: openai
+                matches:
+                  - path:
+                      pathPrefix: /
+                    headers:
+                      - name: x-provider
+                        value:
+                          exact: openai
+                backends:
+                  - ai:
+                      name: openai
+                      provider:
+                        openAI:
+                          model: gpt-4.1-nano
+                policies:
+                  cors:
+                    allowOrigins: ["*"]
+                    allowHeaders: ["*"]
+                  backendAuth:
+                    key: "$OPENAI_API_KEY"
+
+              - name: gemini
+                backends:
+                  - ai:
+                      name: gemini
+                      provider:
+                        gemini:
+                          model: gemini-2.5-flash
+                policies:
+                  cors:
+                    allowOrigins: ["*"]
+                    allowHeaders: ["*"]
+                  backendAuth:
+                    key: "$GEMINI_API_KEY"

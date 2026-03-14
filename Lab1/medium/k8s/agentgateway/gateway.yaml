@@ -1,0 +1,117 @@
+# Gateway API: Gateway + HTTPRoutes для agentgateway в Kubernetes
+# Документація: https://agentgateway.dev/docs/kubernetes/latest/quickstart/install
+---
+# Gateway — точка входу для трафіку
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: agentgateway-proxy
+  namespace: agentgateway-system
+  labels:
+    lab: AIRE2026
+spec:
+  gatewayClassName: agentgateway
+  listeners:
+    - protocol: HTTP
+      port: 8080
+      name: http
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+# AgentgatewayBackend: Gemini (за замовчуванням)
+# Secret gemini-secret повинен мати ключ Authorization: <GEMINI_API_KEY>
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: gemini
+  namespace: agentgateway-system
+  labels:
+    lab: AIRE2026
+spec:
+  ai:
+    provider:
+      gemini:
+        model: gemini-2.5-flash
+  policies:
+    auth:
+      secretRef:
+        name: gemini-secret
+---
+# AgentgatewayBackend: Anthropic
+# Secret anthropic-secret повинен мати ключ Authorization: <ANTHROPIC_API_KEY>
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: anthropic
+  namespace: agentgateway-system
+  labels:
+    lab: AIRE2026
+spec:
+  ai:
+    provider:
+      anthropic:
+        model: claude-3-5-haiku-20241022
+  policies:
+    auth:
+      secretRef:
+        name: anthropic-secret
+---
+# AgentgatewayBackend: OpenAI
+# Secret openai-secret повинен мати ключ Authorization: <OPENAI_API_KEY>
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: openai
+  namespace: agentgateway-system
+  labels:
+    lab: AIRE2026
+spec:
+  ai:
+    provider:
+      openai:
+        model: gpt-4.1-nano
+  policies:
+    auth:
+      secretRef:
+        name: openai-secret
+---
+# HTTPRoute: маршрутизація за заголовком x-provider
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-routes
+  namespace: agentgateway-system
+  labels:
+    lab: AIRE2026
+spec:
+  parentRefs:
+    - name: agentgateway-proxy
+      namespace: agentgateway-system
+  rules:
+    # Anthropic — за заголовком x-provider: anthropic
+    - matches:
+        - headers:
+            - name: x-provider
+              value: anthropic
+      backendRefs:
+        - name: anthropic
+          namespace: agentgateway-system
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # OpenAI — за заголовком x-provider: openai
+    - matches:
+        - headers:
+            - name: x-provider
+              value: openai
+      backendRefs:
+        - name: openai
+          namespace: agentgateway-system
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+    # Gemini — маршрут за замовчуванням
+    - backendRefs:
+        - name: gemini
+          namespace: agentgateway-system
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
