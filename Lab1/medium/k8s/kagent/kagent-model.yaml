@@ -1,8 +1,7 @@
-# kagent ModelConfig: підключення до agentgateway як OpenAI-сумісний LLM провайдер
-# Схема: https://github.com/kagent-dev/kagent/blob/main/go/api/v1alpha1/modelconfig_types.go
-# Документація: https://kagent.dev/docs/kagent/getting-started/quickstart
+# kagent ModelConfig v1alpha2: agentgateway як OpenAI-сумісний LLM провайдер
+# Схема: kubectl get crd modelconfigs.kagent.dev -o yaml
 ---
-apiVersion: kagent.dev/v1alpha1
+apiVersion: kagent.dev/v1alpha2
 kind: ModelConfig
 metadata:
   name: agentgateway-gemini
@@ -11,12 +10,8 @@ metadata:
     lab: AIRE2026
 spec:
   model: gemini-2.5-flash
-  # OpenAI-compatible: agentgateway надає /v1/chat/completions endpoint
   provider: OpenAI
-  # Назва секрету (рядок, не об'єкт)
-  apiKeySecretRef: gemini-secret
-  # Ключ у секреті
+  apiKeySecret: gemini-secret
   apiKeySecretKey: Authorization
-  # OpenAI-specific: URL agentgateway всередині кластера
   openAI:
     baseUrl: "http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1"

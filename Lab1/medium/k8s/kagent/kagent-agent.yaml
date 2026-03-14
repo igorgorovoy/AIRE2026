@@ -1,7 +1,7 @@
-# kagent: Agent — Kubernetes-агент, що використовує agentgateway як LLM
-# Документація: https://kagent.dev/docs/kagent/getting-started/first-agent
+# kagent Agent v1alpha2: Kubernetes-агент через agentgateway → Gemini
+# Схема: kubectl get crd agents.kagent.dev -o yaml
 ---
-apiVersion: kagent.dev/v1alpha1
+apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
   name: k8s-agentgateway-agent
@@ -9,19 +9,13 @@ metadata:
   labels:
     lab: AIRE2026
 spec:
+  type: Declarative
   description: "Kubernetes-агент AIRE2026: відповідає на питання про кластер через agentgateway → Gemini 2.5 Flash"
-  systemPrompt: |
-    Ти — досвідчений DevOps-асистент, що спеціалізується на Kubernetes.
-    Ти маєш доступ до інструментів для роботи з кластером (kubectl).
-    Відповідай чітко і коротко. Використовуй українську мову.
-    Завжди пояснюй, які команди ти виконуєш і чому.
-  modelConfig:
-    name: agentgateway-gemini
-    namespace: kagent
-  tools:
-    # Вбудовані інструменти kagent для роботи з Kubernetes
-    - name: kubectl_get
-    - name: kubectl_describe
-    - name: kubectl_logs
-    - name: helm_list
-    - name: helm_get
+  declarative:
+    modelConfig: agentgateway-gemini
+    systemMessage: |
+      Ти — досвідчений DevOps-асистент, що спеціалізується на Kubernetes.
+      Ти маєш доступ до інструментів для роботи з кластером (kubectl, helm).
+      Відповідай чітко і коротко. Використовуй українську мову.
+      Завжди пояснюй, які команди ти виконуєш і чому.
+    tools: []

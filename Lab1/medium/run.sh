@@ -117,18 +117,34 @@ step "5. Деплой Gateway, AgentgatewayBackends та HTTPRoute"
 kapply -f "$K8S_DIR/agentgateway/gateway.yaml"
 info "Gateway, Backends та HTTPRoute застосовано"
 
-# ── 6. kagent (БЕЗ demo профілю) ──────────────────────────────────────────────
+# ── 6. kagent (minimal профіль) ───────────────────────────────────────────────
 step "6. Встановлення kagent у кластер"
-# Встановлюємо ТІЛЬКИ core компоненти — без --profile demo
-# demo профіль (~10 агентів) перевантажує SQLite на single-node k3s
-kagent install 2>&1 | grep -v "^[IW][0-9]" || true
-info "kagent core встановлено"
+# --profile minimal: тільки kagent-api + kagent-controller (без demo агентів)
+# --profile demo (~10 агентів) перевантажує kine/SQLite на single-node k3s
+# Helm install з вимкненими demo агентами (уникаємо перевантаження kine/SQLite)
+helm upgrade -i kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds \
+  --namespace "$KAGENT_NAMESPACE" --create-namespace \
+  --wait --timeout 60s
+helm upgrade -i kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent \
+  --namespace "$KAGENT_NAMESPACE" \
+  --set agents.k8s-agent.enabled=false \
+  --set agents.kgateway-agent.enabled=false \
+  --set agents.istio-agent.enabled=false \
+  --set agents.promql-agent.enabled=false \
+  --set agents.observability-agent.enabled=false \
+  --set agents.argo-rollouts-agent.enabled=false \
+  --set agents.helm-agent.enabled=false \
+  --set agents.cilium-policy-agent.enabled=false \
+  --set agents.cilium-manager-agent.enabled=false \
+  --set agents.cilium-debug-agent.enabled=false \
+  --wait --timeout 120s
+info "kagent core встановлено (без demo агентів)"
 
-# Чекаємо поки kagent-api стане Ready
-info "Очікування kagent-api..."
-kubectl wait --for=condition=Available deployment/kagent-api \
-  -n "$KAGENT_NAMESPACE" --timeout=180s 2>/dev/null \
-  || warn "kagent-api ще не Ready — перевірте: kubectl get pods -n $KAGENT_NAMESPACE"
+# Чекаємо поки kagent-controller стане Ready (kagent-api → kagent-controller у v0.7+)
+info "Очікування kagent-controller..."
+kubectl wait --for=condition=Available deployment/kagent-controller \
+  -n "$KAGENT_NAMESPACE" --timeout=120s 2>/dev/null \
+  || warn "kagent-controller ще не Ready — перевірте: kubectl get pods -n $KAGENT_NAMESPACE"
 
 # ── 7. kagent ModelConfig + Agent ────────────────────────────────────────────
 step "7. Налаштування kagent: ModelConfig та Agent"
