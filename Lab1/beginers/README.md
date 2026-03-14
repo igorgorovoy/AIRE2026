@@ -1,15 +1,20 @@
-# Lab1 — Beginners: agentgateway з Google Gemini
+# Lab1 — Beginners: agentgateway з кількома LLM провайдерами
 
-Один скрипт виконує встановлення, налаштування та запуск gateway. Далі — перевірка доступу до LLM та основи Backends і Policy.
+Один скрипт встановлює agentgateway та запускає gateway з трьома backends: **Gemini**, **Anthropic**, **OpenAI**.
+Провайдер обирається через заголовок `x-provider`. За замовчуванням — Gemini.
 
 ## Швидкий старт
 
 ```bash
-# 1. Отримати API ключ Gemini
-#    https://aistudio.google.com/api-keys
+# 1. Отримати API ключі:
+#    Gemini:    https://aistudio.google.com/api-keys
+#    Anthropic: https://console.anthropic.com/settings/keys
+#    OpenAI:    https://platform.openai.com/api-keys
 
-# 2. Встановити змінну середовища
-export GEMINI_API_KEY=your-api-key
+# 2. Встановити змінні (мінімум — Gemini)
+export GEMINI_API_KEY=your-gemini-key
+export ANTHROPIC_API_KEY=your-anthropic-key   # опціонально
+export OPENAI_API_KEY=your-openai-key         # опціонально
 
 # 3. Запустити (встановить agentgateway при першому запуску)
 ./run.sh
@@ -17,25 +22,24 @@ export GEMINI_API_KEY=your-api-key
 
 Після запуску:
 
-- **UI:** http://localhost:15000/ui/
+- **UI:**  http://localhost:15000/ui/
 - **API:** http://localhost:3000
 
 ---
 
 ## Що робить `run.sh`
 
-1. **Встановлює agentgateway** — [Deploy the binary](https://agentgateway.dev/docs/standalone/latest/deployment/binary/): завантажує бінар для вашої ОС/архітектури в `/usr/local/bin/agentgateway`.
-2. **Обирає LLM провайдера** — [Providers](https://agentgateway.dev/docs/standalone/latest/llm/providers/): у цьому лабі використовується **Google Gemini** (AI Studio).
-3. **Налаштовує config.yaml** — [LLM Gateway tutorial](https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/): один route на порту 3000 з backend `gemini` та політиками CORS і backendAuth.
-4. **Запускає gateway** і дає доступ через UI по http://localhost:15000/ui/.
+1. **Встановлює agentgateway** — [Deploy the binary](https://agentgateway.dev/docs/standalone/latest/deployment/binary/): завантажує бінар `darwin-arm64` в `/usr/local/bin/agentgateway`.
+2. **Перевіряє API ключі** — виводить статус кожного провайдера.
+3. **Запускає gateway** з `config.yaml` та дає доступ через UI на http://localhost:15000/ui/.
 
 ---
 
-## Перевірка доступу до LLM
+## Тести
 
 Коли gateway запущено (`./run.sh`), у **іншому терміналі** виконайте:
 
-### Тест 1 — базовий запит
+### Тест 1 — Gemini 2.5 Flash (за замовчуванням)
 
 ```bash
 curl http://localhost:3000/v1/chat/completions \
@@ -51,24 +55,55 @@ curl http://localhost:3000/v1/chat/completions \
 ```json
 {
   "model": "gemini-2.5-flash",
-  "usage": {
-    "prompt_tokens": 9,
-    "completion_tokens": 676,
-    "total_tokens": 2244
-  },
+  "usage": {"prompt_tokens": 9, "completion_tokens": 676, "total_tokens": 2244},
   "choices": [{
-    "message": {
-      "role": "assistant",
-      "content": "Привіт! AgentGateway — це програмний компонент, що служить єдиною точкою доступу для агентів до різних систем..."
-    },
-    "finish_reason": "stop",
-    "index": 0
+    "message": {"role": "assistant", "content": "AgentGateway — це програмний компонент..."},
+    "finish_reason": "stop"
   }],
   "object": "chat.completion"
 }
 ```
 
-### Тест 2 — перелік доступних моделей
+### Тест 2 — Anthropic Claude (x-provider: anthropic)
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-provider: anthropic" \
+  -d '{
+    "model": "claude-3-5-haiku-20241022",
+    "messages": [{"role": "user", "content": "Привіт! Що таке agentgateway?"}]
+  }'
+```
+
+### Тест 3 — OpenAI GPT (x-provider: openai)
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-provider: openai" \
+  -d '{
+    "model": "gpt-4.1-nano",
+    "messages": [{"role": "user", "content": "Привіт! Що таке agentgateway?"}]
+  }'
+```
+
+### Тест 4 — multi-turn діалог (Gemini)
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {"role": "user", "content": "Ти — DevOps-асистент. Відповідай коротко."},
+      {"role": "assistant", "content": "Зрозумів! Готовий допомагати з DevOps питаннями."},
+      {"role": "user", "content": "Що таке Gateway pattern в мікросервісах?"}
+    ]
+  }'
+```
+
+### Тест 5 — перелік доступних моделей Gemini
 
 ```bash
 curl "https://generativelanguage.googleapis.com/v1/models?key=$GEMINI_API_KEY" \
@@ -87,60 +122,74 @@ curl "https://generativelanguage.googleapis.com/v1/models?key=$GEMINI_API_KEY" \
 "name": "models/gemini-2.5-flash-lite"
 ```
 
-### Тест 3 — multi-turn діалог
-
-```bash
-curl http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemini-2.5-flash",
-    "messages": [
-      {"role": "user", "content": "Ти — DevOps-асистент. Відповідай коротко."},
-      {"role": "assistant", "content": "Зрозумів! Готовий допомагати з DevOps питаннями."},
-      {"role": "user", "content": "Що таке Gateway pattern в мікросервісах?"}
-    ]
-  }'
-```
-
-Якщо є помилка авторизації — перевірте `GEMINI_API_KEY` та ключ на https://aistudio.google.com/api-keys.
-
-> **Примітка:** `gemini-2.0-flash` на безкоштовному tier може мати `limit: 0` для певних регіонів. Використовуйте `gemini-2.5-flash`.
-
 ---
 
-## Backends та Policy (коротко)
+## UI — agentgateway
 
-У UI (http://localhost:15000/ui/) перегляньте:
+### Overview (Home)
+
+![UI Overview](screenshots/ui-overview.png)
+
+Головна сторінка показує загальний стан gateway: 1 Port Bind, 1 Listener (`AIRE2026`), 3 Routes, 3 Backends. Статус `Configuration looks good!` — всі listeners мають routes, всі routes мають backends.
 
 ### Backends
 
-- **Backends** — це цільові сервіси, до яких gateway проксує запити.
-- У цьому лабі є один backend типу **AI**: **gemini** (провайдер Gemini, модель `gemini-2.5-flash`).
-- Кожен backend має ім’я, провайдера, модель і набір політик.
+![UI Backends](screenshots/ui-backends.png)
 
-### Policy (політики)
+Три AI backends, прив'язані до listener `AIRE2026`:
 
-- **policies** визначають, як обробляти трафік для маршруту/backend.
-- У `config.yaml` для маршруту задано:
-  - **cors** — дозволені origins/headers для браузера.
-  - **backendAuth** — ключ `$GEMINI_API_KEY` підставляється в запити до Gemini.
+| Name       | Provider  | Model                      | Route     |
+|------------|-----------|----------------------------|-----------|
+| anthropic  | Anthropic | `claude-3-5-haiku-20241022`| anthropic |
+| openai     | OpenAI    | `gpt-4.1-nano`             | openai    |
+| gemini     | Gemini    | `gemini-2.5-flash`         | gemini    |
+
+Кожен backend має `Backend Auth` policy (ключ підставляється автоматично).
+
+### Policies
+
+![UI Policies](screenshots/ui-policies.png)
+
+Три routes з policies (listener `AIRE2026`, Port 3000):
+
+| Route     | Path | Policies                     |
+|-----------|------|------------------------------|
+| anthropic | `/`  | Backend Auth, CORS           |
+| openai    | `/`  | Backend Auth, CORS           |
+| gemini    | `/*` | Backend Auth, CORS           |
+
+Активні policies для route `gemini`: **Backend Auth** (Active) та **CORS** (Active).
+
+---
+
+## Backends та Policy
+
+У UI (http://localhost:15000/ui/) відкрийте **Routes** і **Backends**:
+
+| Backend     | Провайдер  | Модель                   | Route (x-provider) |
+|-------------|------------|--------------------------|--------------------|
+| `gemini`    | Gemini     | `gemini-2.5-flash`       | *(за замовчуванням)* |
+| `anthropic` | Anthropic  | `claude-3-5-haiku-20241022` | `anthropic`    |
+| `openai`    | OpenAI     | `gpt-4.1-nano`           | `openai`           |
+
+### Policy (політики) у `config.yaml`
+
+- **cors** — дозволяє запити з будь-якого origin/header (для тестування).
+- **backendAuth** — підставляє відповідний API ключ (`$GEMINI_API_KEY`, `$ANTHROPIC_API_KEY`, `$OPENAI_API_KEY`) в запити до провайдера. Клієнт ключ не бачить.
 
 Детальніше:
 
-- [Configuration overview](https://agentgateway.dev/docs/standalone/latest/configuration/)
+- [Providers](https://agentgateway.dev/docs/standalone/latest/llm/providers/)
 - [Backends](https://agentgateway.dev/docs/standalone/latest/configuration/backends)
 - [Security (auth, CORS)](https://agentgateway.dev/docs/standalone/latest/configuration/security)
+- [Multiple LLM providers](https://agentgateway.dev/docs/standalone/latest/llm/providers/multiple-llms)
 
 ---
 
 ## Файли
 
-| Файл         | Опис |
-|--------------|------|
-| `run.sh`     | Встановлення agentgateway, перевірка ключа, запуск gateway з `config.yaml`. |
-| `config.yaml`| Конфіг для одного route (port 3000) з backend Gemini та політиками. |
-| `README.md`  | Інструкції та пояснення Backends/Policy. |
-
-## Інші провайдери
-
-Приклад конфігу для одного провайдера є в [LLM Gateway tutorial](https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/) (OpenAI, Anthropic, Gemini, Bedrock, Azure, Ollama). Щоб використати інший провайдер, змініть `config.yaml` за цим туторіалом і при потребі додайте відповідні змінні середовища (наприклад, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+| Файл          | Опис |
+|---------------|------|
+| `run.sh`      | Встановлення agentgateway, перевірка ключів, запуск gateway. |
+| `config.yaml` | Три routes/backends (Gemini, Anthropic, OpenAI) з routing за `x-provider`. |
+| `README.md`   | Інструкції, тести, опис Backends і Policy. |

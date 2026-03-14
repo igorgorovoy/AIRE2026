@@ -46,19 +46,51 @@ if need_install; then
 else
   echo "agentgateway вже встановлено: $(agentgateway --version 2>/dev/null | head -1)"
 fi
-echo "=== 3. Конфігурація config.yaml ==="
+echo ""
+echo "=== 2. Конфігурація config.yaml ==="
 if [[ ! -f "$CONFIG" ]]; then
   echo "Помилка: $CONFIG не знайдено."; exit 1
 fi
+echo "Використовується: $CONFIG"
+echo ""
 
+echo "=== 3. API ключі провайдерів ==="
+MISSING=0
 
-echo "=== 4. API ключ Gemini ==="
 if [[ -z "${GEMINI_API_KEY:-}" ]]; then
-  echo "Встановіть GEMINI_API_KEY з https://aistudio.google.com/api-keys"
-  echo "  export GEMINI_API_KEY=your-api-key"
-  echo "Потім перезапустіть цей скрипт."
+  echo "  [!] GEMINI_API_KEY не встановлено — Gemini backend буде недоступний"
+  echo "      Отримати: https://aistudio.google.com/api-keys"
+  MISSING=1
+else
+  echo "  [+] GEMINI_API_KEY    встановлено (${#GEMINI_API_KEY} символів)"
+fi
+
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+  echo "  [ ] ANTHROPIC_API_KEY не встановлено — Anthropic backend буде недоступний"
+  echo "      Отримати: https://console.anthropic.com/settings/keys"
+else
+  echo "  [+] ANTHROPIC_API_KEY встановлено (${#ANTHROPIC_API_KEY} символів)"
+fi
+
+if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+  echo "  [ ] OPENAI_API_KEY    не встановлено — OpenAI backend буде недоступний"
+  echo "      Отримати: https://platform.openai.com/api-keys"
+else
+  echo "  [+] OPENAI_API_KEY    встановлено (${#OPENAI_API_KEY} символів)"
+fi
+
+if [[ "$MISSING" -eq 1 ]]; then
+  echo ""
+  echo "  Необхідний мінімум: GEMINI_API_KEY (маршрут за замовчуванням)."
+  echo "  Встановіть і перезапустіть: export GEMINI_API_KEY=your-key && ./run.sh"
   exit 1
 fi
 
-
+echo ""
+echo "=== 4. Запуск gateway ==="
+echo "  • API:  http://localhost:3000"
+echo "  • UI:   http://localhost:15000/ui/"
+echo "  • Routing: x-provider: gemini | anthropic | openai"
+echo "  • Зупинити: Ctrl+C"
+echo ""
 agentgateway -f "$CONFIG"

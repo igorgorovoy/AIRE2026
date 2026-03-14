@@ -1,12 +1,65 @@
-# Lab1 beginners: agentgateway з Google Gemini (AI Studio)
-# Схема: https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/
-# API ключ: https://aistudio.google.com/api-keys
+# Lab1 beginners: agentgateway з кількома LLM провайдерами
+# Провайдер обирається через заголовок x-provider (gemini | anthropic | openai)
+# За замовчуванням — gemini-2.5-flash
+# Документація: https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/
+# API ключі:
+#   Gemini:    https://aistudio.google.com/api-keys
+#   Anthropic: https://console.anthropic.com/settings/keys
+#   OpenAI:    https://platform.openai.com/api-keys
 # yaml-language-server: $schema=https://agentgateway.dev/schema/config
 binds:
   - port: 3000
     listeners:
-      - routes:
-          - backends:
+      - name: AIRE2026
+        routes:
+
+          # --- Anthropic (x-provider: anthropic) ---
+          - name: anthropic
+            matches:
+              - path:
+                  pathPrefix: /
+                headers:
+                  - name: x-provider
+                    value:
+                      exact: anthropic
+            backends:
+              - ai:
+                  name: anthropic
+                  provider:
+                    anthropic:
+                      model: claude-3-5-haiku-20241022
+            policies:
+              cors:
+                allowOrigins: ["*"]
+                allowHeaders: ["*"]
+              backendAuth:
+                key: "$ANTHROPIC_API_KEY"
+
+          # --- OpenAI (x-provider: openai) ---
+          - name: openai
+            matches:
+              - path:
+                  pathPrefix: /
+                headers:
+                  - name: x-provider
+                    value:
+                      exact: openai
+            backends:
+              - ai:
+                  name: openai
+                  provider:
+                    openAI:
+                      model: gpt-4.1-nano
+            policies:
+              cors:
+                allowOrigins: ["*"]
+                allowHeaders: ["*"]
+              backendAuth:
+                key: "$OPENAI_API_KEY"
+
+          # --- Gemini (за замовчуванням) ---
+          - name: gemini
+            backends:
               - ai:
                   name: gemini
                   provider:
