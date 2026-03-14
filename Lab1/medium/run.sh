@@ -162,8 +162,19 @@ info "ModelConfig agentgateway-gemini застосовано"
 kapply -f "$K8S_DIR/kagent/kagent-agent.yaml"
 info "Agent k8s-agentgateway-agent застосовано"
 
-# ── 8. Статус ─────────────────────────────────────────────────────────────────
-step "8. Статус деплойменту"
+# ── 8. Ingress (Traefik) ──────────────────────────────────────────────────────
+step "8. Ingress для kagent-ui та agentgateway-proxy"
+kapply -f "$K8S_DIR/ingress.yaml"
+info "Ingress застосовано"
+
+# /etc/hosts (якщо ще немає)
+if ! grep -q "aire2026.local" /etc/hosts 2>/dev/null; then
+  warn "Додайте в /etc/hosts:"
+  warn "  echo '192.168.64.4  kagent.aire2026.local api.aire2026.local' | sudo tee -a /etc/hosts"
+fi
+
+# ── 9. Статус ─────────────────────────────────────────────────────────────────
+step "9. Статус деплойменту"
 echo ""
 info "Pods у $AGENTGATEWAY_NS:"
 kubectl get pods -n "$AGENTGATEWAY_NS"
@@ -180,13 +191,17 @@ kubectl get modelconfig,agents -n "$KAGENT_NAMESPACE" 2>/dev/null || true
 echo ""
 echo -e "${GREEN}✓ Деплой завершено!${NC}"
 echo ""
-echo "  Port-forward для тестування agentgateway:"
-echo "    kubectl port-forward svc/agentgateway-proxy -n $AGENTGATEWAY_NS 8080:8080"
+echo "  ┌─────────────────────────────────────────────────────────────┐"
+echo "  │  Доступ без port-forward (потрібен рядок у /etc/hosts):    │"
+echo "  │                                                             │"
+echo "  │  kagent UI:      http://kagent.aire2026.local              │"
+echo "  │  agentgateway:   http://api.aire2026.local                  │"
+echo "  │                                                             │"
+echo "  │  sudo tee -a /etc/hosts <<< \\                              │"
+echo "  │    '192.168.64.4 kagent.aire2026.local api.aire2026.local'  │"
+echo "  └─────────────────────────────────────────────────────────────┘"
 echo ""
-echo "  Тест через curl:"
-echo "    curl -s http://localhost:8080/v1/chat/completions \\"
+echo "  Тест API:"
+echo "    curl -s http://api.aire2026.local/v1/chat/completions \\"
 echo "      -H 'Content-Type: application/json' \\"
 echo "      -d '{\"model\":\"gemini-2.5-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}'"
-echo ""
-echo "  kagent UI:"
-echo "    kagent ui"
