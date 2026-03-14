@@ -3,6 +3,9 @@
 # Документація:
 #   agentgateway k8s: https://agentgateway.dev/docs/kubernetes/latest/quickstart/install
 #   kagent:           https://kagent.dev/docs/kagent/getting-started/quickstart
+#
+# УВАГА: НЕ запускайте `kagent install --profile demo` на single-node k3s —
+# demo профіль встановлює ~10 агентів, що перевантажують kine/SQLite backend.
 
 set -euo pipefail
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +21,9 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 step()  { echo -e "\n${GREEN}===${NC} $* ${GREEN}===${NC}"; }
+
+# kubectl apply з --validate=false (уникаємо TLS timeout при завантаженні OpenAPI схеми)
+kapply() { kubectl apply --validate=false "$@"; }
 
 # ── 0. Передумови ─────────────────────────────────────────────────────────────
 step "0. Перевірка інструментів"
@@ -66,7 +72,7 @@ info "Gateway API CRDs встановлено"
 
 # ── 3. agentgateway Helm ──────────────────────────────────────────────────────
 step "3. Встановлення agentgateway (Helm)"
-kubectl create namespace "$AGENTGATEWAY_NS" --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace "$AGENTGATEWAY_NS" --dry-run=client -o yaml | kapply -f -
 
 helm upgrade -i agentgateway-crds oci://ghcr.io/kgateway-dev/charts/agentgateway-crds \
   --namespace "$AGENTGATEWAY_NS" \
@@ -86,87 +92,85 @@ info "agentgateway встановлено"
 kubectl wait --for=condition=Available deployment/agentgateway \
   -n "$AGENTGATEWAY_NS" --timeout=120s
 
-# ── 4. Secret з API ключами ───────────────────────────────────────────────────
+# ── 4. Secrets для LLM провайдерів ────────────────────────────────────────────
 step "4. Створення Secrets для кожного LLM провайдера"
-# AgentgatewayBackend очікує Secret з ключем "Authorization" = значення API ключа
 kubectl create secret generic gemini-secret \
   --namespace "$AGENTGATEWAY_NS" \
   --from-literal=Authorization="${GEMINI_API_KEY}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-info "Secret gemini-secret застосовано"
+  --dry-run=client -o yaml | kapply -f -
+info "Secret gemini-secret (agentgateway-system) застосовано"
 
 kubectl create secret generic anthropic-secret \
   --namespace "$AGENTGATEWAY_NS" \
   --from-literal=Authorization="${ANTHROPIC_API_KEY:-placeholder}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-info "Secret anthropic-secret застосовано"
+  --dry-run=client -o yaml | kapply -f -
+info "Secret anthropic-secret (agentgateway-system) застосовано"
 
 kubectl create secret generic openai-secret \
   --namespace "$AGENTGATEWAY_NS" \
   --from-literal=Authorization="${OPENAI_API_KEY:-placeholder}" \
-  --dry-run=client -o yaml | kubectl apply -f -
-info "Secret openai-secret застосовано"
+  --dry-run=client -o yaml | kapply -f -
+info "Secret openai-secret (agentgateway-system) застосовано"
 
 # ── 5. Gateway + Backends + HTTPRoute ─────────────────────────────────────────
 step "5. Деплой Gateway, AgentgatewayBackends та HTTPRoute"
-kubectl apply -f "$K8S_DIR/agentgateway/gateway.yaml"
+kapply -f "$K8S_DIR/agentgateway/gateway.yaml"
 info "Gateway, Backends та HTTPRoute застосовано"
 
-# ── 6. kagent ─────────────────────────────────────────────────────────────────
+# ── 6. kagent (БЕЗ demo профілю) ──────────────────────────────────────────────
 step "6. Встановлення kagent у кластер"
-kagent install --profile demo
-info "kagent встановлено (profile: demo)"
+# Встановлюємо ТІЛЬКИ core компоненти — без --profile demo
+# demo профіль (~10 агентів) перевантажує SQLite на single-node k3s
+kagent install 2>&1 | grep -v "^[IW][0-9]" || true
+info "kagent core встановлено"
+
+# Чекаємо поки kagent-api стане Ready
+info "Очікування kagent-api..."
+kubectl wait --for=condition=Available deployment/kagent-api \
+  -n "$KAGENT_NAMESPACE" --timeout=180s 2>/dev/null \
+  || warn "kagent-api ще не Ready — перевірте: kubectl get pods -n $KAGENT_NAMESPACE"
 
 # ── 7. kagent ModelConfig + Agent ────────────────────────────────────────────
 step "7. Налаштування kagent: ModelConfig та Agent"
-kubectl create namespace "$KAGENT_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
+# Secret для kagent namespace (kagent → agentgateway authentication)
 kubectl create secret generic gemini-secret \
   --namespace "$KAGENT_NAMESPACE" \
   --from-literal=Authorization="${GEMINI_API_KEY}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kapply -f -
+info "Secret gemini-secret (kagent) застосовано"
 
-kubectl apply -f "$K8S_DIR/kagent/kagent-model.yaml"
-kubectl apply -f "$K8S_DIR/kagent/kagent-agent.yaml"
-info "ModelConfig та Agent застосовано"
+kapply -f "$K8S_DIR/kagent/kagent-model.yaml"
+info "ModelConfig agentgateway-gemini застосовано"
 
-# ── 8. Port-forward та перевірка ─────────────────────────────────────────────
-step "8. Статус та доступ"
+kapply -f "$K8S_DIR/kagent/kagent-agent.yaml"
+info "Agent k8s-agentgateway-agent застосовано"
+
+# ── 8. Статус ─────────────────────────────────────────────────────────────────
+step "8. Статус деплойменту"
 echo ""
 info "Pods у $AGENTGATEWAY_NS:"
 kubectl get pods -n "$AGENTGATEWAY_NS"
 echo ""
+info "Pods у $KAGENT_NAMESPACE:"
+kubectl get pods -n "$KAGENT_NAMESPACE"
+echo ""
 info "Gateway:"
 kubectl get gateway agentgateway-proxy -n "$AGENTGATEWAY_NS" 2>/dev/null || true
 echo ""
+info "ModelConfig та Agents:"
+kubectl get modelconfig,agents -n "$KAGENT_NAMESPACE" 2>/dev/null || true
 
-cat <<'EOF'
-
-─────────────────────────────────────────────────────────
-  Для тестування agentgateway (port-forward):
-    kubectl port-forward deployment/agentgateway-proxy \
-      -n agentgateway-system 8080:8080
-
-  Тестовий запит (Gemini, у другому терміналі):
-    curl localhost:8080/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Привіт!"}]}'
-
-  Тестовий запит (Anthropic):
-    curl localhost:8080/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -H "x-provider: anthropic" \
-      -d '{"model":"claude-3-5-haiku-20241022","messages":[{"role":"user","content":"Привіт!"}]}'
-
-  kagent dashboard:
-    kagent dashboard
-
-  kagent invoke (helm-agent):
-    kagent invoke -t "What Helm charts are in my cluster?" --agent helm-agent
-
-  Видалення всього:
-    helm uninstall agentgateway agentgateway-crds -n agentgateway-system
-    kagent uninstall
-─────────────────────────────────────────────────────────
-
-EOF
+echo ""
+echo -e "${GREEN}✓ Деплой завершено!${NC}"
+echo ""
+echo "  Port-forward для тестування agentgateway:"
+echo "    kubectl port-forward svc/agentgateway-proxy -n $AGENTGATEWAY_NS 8080:8080"
+echo ""
+echo "  Тест через curl:"
+echo "    curl -s http://localhost:8080/v1/chat/completions \\"
+echo "      -H 'Content-Type: application/json' \\"
+echo "      -d '{\"model\":\"gemini-2.5-flash\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}'"
+echo ""
+echo "  kagent UI:"
+echo "    kagent ui"
