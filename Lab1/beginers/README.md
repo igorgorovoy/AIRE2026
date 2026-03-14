@@ -35,23 +35,76 @@ export GEMINI_API_KEY=your-api-key
 
 Коли gateway запущено (`./run.sh`), у **іншому терміналі** виконайте:
 
+### Тест 1 — базовий запит
+
 ```bash
 curl http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemini-2.5-flash",
-    "messages": [{"role": "user", "content": "Привіт! Скажи одним реченням, що таке agentgateway."}]
+    "messages": [{"role": "user", "content": "Привіт! Що таке agentgateway?"}]
   }'
 ```
 
-Успішна відповідь містить `"choices"` з полем `message.content`. Якщо є помилка авторизації — перевірте `GEMINI_API_KEY` та ключ на https://aistudio.google.com/api-keys.
+Приклад успішної відповіді (скорочено):
 
-### Перевірка доступних моделей
+```json
+{
+  "model": "gemini-2.5-flash",
+  "usage": {
+    "prompt_tokens": 9,
+    "completion_tokens": 676,
+    "total_tokens": 2244
+  },
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "Привіт! AgentGateway — це програмний компонент, що служить єдиною точкою доступу для агентів до різних систем..."
+    },
+    "finish_reason": "stop",
+    "index": 0
+  }],
+  "object": "chat.completion"
+}
+```
+
+### Тест 2 — перелік доступних моделей
 
 ```bash
 curl "https://generativelanguage.googleapis.com/v1/models?key=$GEMINI_API_KEY" \
   | python3 -m json.tool | grep '"name"'
 ```
+
+Доступні моделі (підтверджено):
+
+```
+"name": "models/gemini-2.5-flash"
+"name": "models/gemini-2.5-pro"
+"name": "models/gemini-2.0-flash"
+"name": "models/gemini-2.0-flash-001"
+"name": "models/gemini-2.0-flash-lite-001"
+"name": "models/gemini-2.0-flash-lite"
+"name": "models/gemini-2.5-flash-lite"
+```
+
+### Тест 3 — multi-turn діалог
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-2.5-flash",
+    "messages": [
+      {"role": "user", "content": "Ти — DevOps-асистент. Відповідай коротко."},
+      {"role": "assistant", "content": "Зрозумів! Готовий допомагати з DevOps питаннями."},
+      {"role": "user", "content": "Що таке Gateway pattern в мікросервісах?"}
+    ]
+  }'
+```
+
+Якщо є помилка авторизації — перевірте `GEMINI_API_KEY` та ключ на https://aistudio.google.com/api-keys.
+
+> **Примітка:** `gemini-2.0-flash` на безкоштовному tier може мати `limit: 0` для певних регіонів. Використовуйте `gemini-2.5-flash`.
 
 ---
 
@@ -62,7 +115,7 @@ curl "https://generativelanguage.googleapis.com/v1/models?key=$GEMINI_API_KEY" \
 ### Backends
 
 - **Backends** — це цільові сервіси, до яких gateway проксує запити.
-- У цьому лабі є один backend типу **AI**: **gemini** (провайдер Gemini, модель `gemini-2.0-flash`).
+- У цьому лабі є один backend типу **AI**: **gemini** (провайдер Gemini, модель `gemini-2.5-flash`).
 - Кожен backend має ім’я, провайдера, модель і набір політик.
 
 ### Policy (політики)
