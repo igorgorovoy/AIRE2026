@@ -215,6 +215,66 @@ kind delete cluster
 
 ---
 
+## Screenshots
+
+### ✅ Успішний запуск — kagent invoke (CLI)
+
+![kagent invoke RPG response](screenshots/06-kagent-invoke-rpg-response.png)
+
+> `kagent invoke` до агента `k8s-agentgateway-agent`: запит — RPG-сценарій з DevOps-інженерами. Агент (gemini-2.5-flash через agentgateway) згенерував повноцінну відповідь у форматі JSON з полем `artifacts[].parts[].text`. Це підтверджує повний ланцюг: `kagent → agentgateway-proxy → Gemini API`.
+
+---
+
+### ✅ Успішний запуск — kagent UI (веб-інтерфейс)
+
+![kagent UI RPG chat](screenshots/07-kagent-ui-rpg-chat.png)
+
+> kagent UI (`http://localhost:8090`) — той самий запит через веб-інтерфейс. Агент `kagent/k8s-agentgateway-agent` (gemini-2.5-flash) відповідає безпосередньо в чаті. Справа панель **Agent Details** показує підключену модель і що це RPG-майстер AIRE2026.
+
+---
+
+### 1. Навантаження кластера — CPU 100% (проблема з demo-агентами)
+
+![CPU overload](screenshots/01-cluster-overload-cpu.png)
+
+> Під час встановлення `kagent` з профілем `demo` всі CPU ядра одразу завантажились на 100%. SQLite-backend k3s (kine) не справлявся з потоком API-запитів від 10+ demo-агентів одночасно. Вирішення: використовувати `--profile minimal` або Helm install з явним `agents.<name>.enabled=false`.
+
+---
+
+### 2. Rancher Desktop — Deployments після деплою
+
+![Rancher Deployments](screenshots/02-rancher-deployments.png)
+
+> `agentgateway-system`: обидва деплойменти **Active** (1/1). Namespace `kagent`: demo-агенти у стані **Updating** — ознака проблеми з доступністю (недостатньо ресурсів або API-сервер перевантажений).
+
+---
+
+### 3. Rancher Desktop — Pods Running
+
+![Rancher Pods Running](screenshots/03-rancher-pods-running.png)
+
+> Всі pods зі статусом **Running**: `agentgateway`, `agentgateway-proxy`, `kagent-controller`, `kagent-ui`, `kagent-tools`, `kagent-grafana-mcp`, а також demo-агенти (argo, cilium, helm, istio, k8s). Cluster успішно підняв всі компоненти.
+
+---
+
+### 4. Rancher Desktop — OOMKilled (memory pressure)
+
+![OOMKilled pods](screenshots/04-rancher-pods-oomkilled.png)
+
+> Після нетривалої роботи demo-агенти та `agentgateway` перейшли у стан **OOMKilled** — k3s/Lima VM вичерпав ліміт пам'яті. Видно `agentgateway-74765575c4` та `agentgateway-proxy-6cfc96ccb7` — OOMKilled, поряд з `kagent-kmcp-controller-manager` — OOMKilled.
+
+---
+
+### 5. k9s — повний список pods з OOMKilled
+
+![k9s OOMKilled](screenshots/05-k9s-oomkilled.png)
+
+> k9s-вид (термінальний UI) показує 22 pods. Виділено червоним `agentgateway-74765575c4-ghq55` (OOMKilled). Також `cilium-debug-agent`, `kagent-kmcp-controller-manager`, `coredns` — OOMKilled. Це типова картина перевантаженого Rancher Desktop з k3s + SQLite при запуску повного стеку demo-агентів.
+
+> **Висновок:** для стабільної роботи на локальному k3s треба або збільшити ліміти VM в Rancher Desktop (≥8GB RAM), або деплоїти лише мінімальний набір компонентів (`--profile minimal`).
+
+---
+
 ## Посилання
 
 - [agentgateway Kubernetes Quickstart](https://agentgateway.dev/docs/kubernetes/latest/quickstart/install)
