@@ -45,10 +45,14 @@ def gh_request(method: str, path: str, body: dict | None = None) -> dict:
 
 
 def get_pr_diff(base_ref: str) -> str:
-    result = subprocess.run(
-        ["git", "diff", f"origin/{base_ref}...HEAD"],
-        capture_output=True, text=True, check=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"origin/{base_ref}...HEAD"],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error getting PR diff: {e}\nstderr: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
     diff = result.stdout
     if len(diff) > MAX_DIFF_CHARS:
         diff = diff[:MAX_DIFF_CHARS] + "\n\n[... diff truncated to first 12,000 chars ...]"
