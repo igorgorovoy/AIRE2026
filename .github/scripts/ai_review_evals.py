@@ -116,12 +116,14 @@ def get_pr_commits_after(repo: str, pr_number: int, review_time: str) -> int:
 def check_format_compliance(review_body: str) -> dict:
     found = {section: section in review_body for section in REQUIRED_SECTIONS}
     score_match = re.search(r"(\d+(?:\.\d+)?)/10", review_body)
-    return {
+    base = {
         "sections_found": found,
         "all_sections_present": all(found.values()),
         "compliance_score": sum(found.values()) / len(REQUIRED_SECTIONS),
-        "pr_score": float(score_match.group(1)) if score_match else None,
     }
+    if score_match:
+        return {**base, "pr_score": float(score_match.group(1))}
+    return {**base, "pr_score": None}
 
 
 def analyze_pr(repo: str, pr: dict) -> dict | None:
