@@ -94,3 +94,4 @@ echo "  • Routing: x-provider: gemini | anthropic | openai"
 echo "  • Зупинити: Ctrl+C"
 echo ""
 agentgateway -f "$CONFIG"
+##
