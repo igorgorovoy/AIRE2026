@@ -1,0 +1,38 @@
+name: AI Review Evals
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Lookback period in days"
+        required: false
+        default: "7"
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+jobs:
+  evals:
+    name: Evaluate AI Review Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Evals
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          LOOKBACK_DAYS: ${{ inputs.lookback_days || '7' }}
+        run: python .github/scripts/ai_review_evals.py
