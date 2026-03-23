@@ -1,4 +1,4 @@
-# Лабораторна: початковий рівень (Rancher Desktop + abox)
+# Лабораторна: #2 (Rancher Desktop + abox)
 
 Цей документ покриває пункти **2–3** для треку **початківців**, після успішного `make run` / `tofu apply` і `READY` у Flux.
 
@@ -119,44 +119,134 @@ kubectl get modelconfigs -n kagent
 kubectl api-resources | grep -i mcp
 ```
 
-Приклад (узятий з офіційного гайду — адаптуй `apiVersion` під свій кластер):
+Загальні варіанти: готовий пакет через `uvx` / `npx` ([приклад із `mcp-server-fetch`](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)) або **власний образ** з FastMCP ([kmcp: deploy server](https://kagent.dev/docs/kmcp/deploy/server)).
 
-- [Use MCP servers and tools in kagent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)
+#### Приклад для лабораторної: MCP «скласти два числа»
 
-Мінімальна ідея: `MCPServer` з `uvx` + `stdio` transport, потім перевірка подів у `kagent`.
+У репозиторії є:
+
+- код і Dockerfile: [`docs/examples/add-two-mcp/`](../examples/add-two-mcp/) — інструмент **`add_two_numbers(a, b)`** на Python (FastMCP);
+- **канонічні маніфести** та покроковий деплой: [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md).
+
+Файли в `manifests/kagent/add-two-mcp/`:
+
+| Файл | Призначення |
+|------|-------------|
+| `all-in-one.yaml` | `MCPServer` + `Agent` одним `kubectl apply` |
+| `mcpserver.yaml` / `agent.yaml` | окремо, якщо потрібен поетапний деплой |
+| `kustomization.yaml` | `kubectl apply -k manifests/kagent/add-two-mcp` |
+
+1. Зібрати образ (з **кореня Lab2**):
+
+   ```bash
+   docker build -t add-two-mcp:latest docs/examples/add-two-mcp
+   ```
+
+2. Застосувати маніфести (див. повну інструкцію в README каталогу маніфестів):
+
+   ```bash
+   kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
+   ```
+
+   Або одним файлом через симлінк (те саме): [`docs/examples/add-two-mcp/k8s.yaml`](../examples/add-two-mcp/k8s.yaml) → `all-in-one.yaml`.
+
+   Фрагмент **`MCPServer`** (ім’я інструменту має збігатися з `server.py` — тут `add_two_numbers`):
+
+   ```yaml
+   apiVersion: kagent.dev/v1alpha1
+   kind: MCPServer
+   metadata:
+     name: mcp-add-two
+     namespace: kagent
+   spec:
+     deployment:
+       image: add-two-mcp:latest
+       port: 3000
+       cmd: python
+       args:
+         - /app/server.py
+     stdioTransport: {}
+     transportType: stdio
+   ```
+
+3. Перевірка:
+
+   ```bash
+   kubectl get mcpservers -n kagent
+   kubectl get pods -n kagent | grep -i add-two
+   ```
+
+   `apiVersion` для `MCPServer`/`Agent` підлаштуй під `kubectl explain mcpserver` / `kubectl explain agent`, якщо кластер на іншій версії CRD.
 
 ### 3.3 Декларативний агент
 
-Створи **`Agent`** з `spec.type: Declarative`, посиланням на `modelConfig` і `tools` → твій `MCPServer`:
+Створи **`Agent`** з `spec.type: Declarative`, посиланням на `modelConfig` і `tools` → твій **`MCPServer`** з переліком `toolNames`.
 
-- [Той самий гайд — секція Creating an agent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)
+#### Приклад: агент «скласти два числа»
+
+Агент використовує той самий `MCPServer` `mcp-add-two` і лише інструмент `add_two_numbers`:
+
+```yaml
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: add-numbers-agent
+  namespace: kagent
+spec:
+  description: Агент, який складає два числа через MCP-інструмент add_two_numbers.
+  type: Declarative
+  declarative:
+    modelConfig: default-model-config
+    systemMessage: |
+      Ти допоміжний асистент. У тебе є інструмент add_two_numbers(a, b) — сума двох цілих чисел.
+      Коли користувач просить додати, скласти або підсумувати два числа, викликай цей інструмент з відповідними a та b.
+      Якщо числа не вказані чітко — уточни. Відповідай у Markdown і коротко поясни результат.
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: mcp-add-two
+          kind: MCPServer
+          toolNames:
+            - add_two_numbers
+```
+
+Застосування (поточний каталог — корінь **Lab2**):
+
+```bash
+kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
+```
+
+(Еквівалентно: `kubectl apply -f docs/examples/add-two-mcp/k8s.yaml` — симлінк на той самий файл.)
 
 Перевірка:
 
 ```bash
 kubectl get agents -n kagent
-kubectl describe agent <name> -n kagent
+kubectl describe agent add-numbers-agent -n kagent
 ```
 
-Чат у UI — після port-forward на порт **8080** (див. вище).
+Чат у UI — після port-forward на порт **8080** (див. вище); вибери агента **add-numbers-agent** і спробуй запит на кшталт: *«Склади 17 і 25»*.
+
+Додатково: [Use MCP servers and tools in kagent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool).
 
 ---
 
-## Скрінкаст (умова: лише трек для початківців)
+## Скріншоти
 
-Якщо виконуєш **тільки** завдання початкового рівня (цей документ + базовий сценарій без додаткових задач “просунутий рівень”):
+Нижче — знімки екрана з проходження лабораторної (оригінальні файли з `~/Movies/Screenshot 2026-03-23 at … .png` скопійовані в репозиторій як `docs/images/lab/screenshot-*.png`).
 
-1. Запиши сесію терміналу, наприклад:
 
-   ```bash
-   asciinema rec docs/screencasts/lab2-beginner.cast
-   ```
+1. ![Скріншот 2](images/lab/screenshot-120856.png)
+2. ![Скріншот 3](images/lab/screenshot-121048.png)
+3. ![Скріншот 4](images/lab/screenshot-121315.png)
 
-2. Завантаж на asciinema.org або додай **посилання** у PR/README поруч із позначкою `beginner`.
 
-3. Великі файли `.cast` краще **не** комітити в git — залиш посилання; якщо комітиш файл, тримай розмір розумним або додай `docs/screencasts/*.cast` у `.gitignore` локально.
+4. ![Скріншот 7](images/lab/screenshot-122350.png)
 
-Якщо лаба включає **просунуті** пункти — скрінкаст у репозиторії **не обов’язковий** (достатньо логів / скріншотів за вимогами викладача).
+5. ![Скріншот 9](images/lab/screenshot-125000.png)
+6. ![Скріншот 10](images/lab/screenshot-125010.png)
+7. ![Скріншот 11](images/lab/screenshot-131531.png)
+8. ![Скріншот 12](images/lab/screenshot-131538.png)
 
 ---
 

@@ -69,6 +69,8 @@ releases/
   agentgateway.yaml  agentgateway HelmRelease + Gateway resource
   kagent.yaml        kagent HelmRelease + HTTPRoute + ReferenceGrant
   kustomization.yaml
+manifests/
+  kagent/add-two-mcp/  Приклад MCPServer + Agent (лабораторна); README — деплой
 scripts/
   setup.sh           Called by make run
 .github/

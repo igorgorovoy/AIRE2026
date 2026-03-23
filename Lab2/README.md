@@ -74,6 +74,8 @@ make push   # bumps patch version, tags, pushes → CI publishes OCI artifact �
 | `bootstrap/` | OpenTofu: Flux bootstrap (operator, instance, RSIP, ResourceSet) on existing k8s context |
 | `releases/crds/` | CRD HelmReleases: gateway-api, agentgateway, kagent |
 | `releases/` | App HelmReleases + Gateway + HTTPRoutes |
+| `manifests/kagent/add-two-mcp/` | Приклад MCP + Agent (лабораторна): маніфести та [інструкція деплою](./manifests/kagent/add-two-mcp/README.md) |
+| `docs/examples/add-two-mcp/` | Початковий код Docker-образа для того ж MCP |
 | `scripts/setup.sh` | Full setup script (`make run`) |
 | `.github/workflows/flux-push.yaml` | CI: publish `releases/` as OCI artifact on `v*` tags |
 

@@ -33,7 +33,7 @@ flux-reconcile:
 
 flux-ui:
 	@echo "Flux Status Web UI → http://127.0.0.1:9080/  (Ctrl+C to stop)"
-kubectl -n flux-system port-forward svc/flux-operator 9080:9080
+	kubectl -n flux-system port-forward svc/flux-operator 9080:9080
 
 down:
 	@cd bootstrap && tofu destroy -auto-approve
