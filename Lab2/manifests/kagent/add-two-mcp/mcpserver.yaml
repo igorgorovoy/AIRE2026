@@ -1,0 +1,18 @@
+# MCP-сервер з інструментом add_two_numbers (образ збирається з docs/examples/add-two-mcp/)
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-add-two
+  namespace: kagent
+spec:
+  deployment:
+    image: add-two-mcp:latest
+    # Без цього для тега :latest діє policy Always → pull з Docker Hub і ImagePullBackOff.
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/server.py
+  stdioTransport: {}
+  transportType: stdio
