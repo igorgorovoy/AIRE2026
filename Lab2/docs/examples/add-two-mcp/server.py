@@ -13,4 +13,5 @@ def add_two_numbers(a: int, b: int) -> int:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # Без банера на stdout — stdio-транспорт MCP має залишати stdout лише для протоколу.
+    mcp.run(show_banner=False)

@@ -15,7 +15,7 @@
 
 ## Lab (початківці)
 
-Покрокові інструкції: **доступ до UI (Flux / kagent / gateway), модель, MCP, агент, умови для скрінкасту** — у [`docs/LAB_BEGINNER.md`](./docs/LAB_BEGINNER.md).
+Покрокові інструкції: **доступ до UI (Flux / kagent / gateway), модель, MCP, агент, скріншоти успішного результату** — у [`LAB2.md`](./LAB2.md).
 
 ### Flux Status Web UI (браузер)
 
@@ -26,7 +26,7 @@ kubectl -n flux-system port-forward svc/flux-operator 9080:9080
 # http://127.0.0.1:9080/
 ```
 
-Деталі: [`docs/LAB_BEGINNER.md`](./docs/LAB_BEGINNER.md) та [Flux Operator Web UI](https://fluxoperator.dev/web-ui/).
+Деталі: [`LAB2.md`](./LAB2.md) та [Flux Operator Web UI](https://fluxoperator.dev/web-ui/).
 
 ## Quickstart
 

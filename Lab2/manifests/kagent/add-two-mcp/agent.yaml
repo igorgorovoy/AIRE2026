@@ -17,6 +17,7 @@ spec:
     tools:
       - type: McpServer
         mcpServer:
+          apiGroup: kagent.dev
           name: mcp-add-two
           kind: MCPServer
           toolNames:

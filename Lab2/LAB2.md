@@ -142,6 +142,15 @@ kubectl api-resources | grep -i mcp
    docker build -t add-two-mcp:latest docs/examples/add-two-mcp
    ```
 
+   **Rancher Desktop без registry:** якщо після `kubectl apply` под MCP у `ImagePullBackOff`, завантаж образ у VM через `rdctl` (повна послідовність у [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md), підрозділ «Без Docker registry»):
+
+   ```bash
+   docker save add-two-mcp:latest -o "$HOME/add-two-mcp.tar"
+   rdctl shell -- sh -lc 'sudo docker load -i '"$HOME"'/add-two-mcp.tar'
+   kubectl delete pod -n kagent -l app.kubernetes.io/name=mcp-add-two
+   kubectl get pods -n kagent | grep mcp-add-two
+   ```
+
 2. Застосувати маніфести (див. повну інструкцію в README каталогу маніфестів):
 
    ```bash
@@ -161,6 +170,7 @@ kubectl api-resources | grep -i mcp
    spec:
      deployment:
        image: add-two-mcp:latest
+       imagePullPolicy: IfNotPresent
        port: 3000
        cmd: python
        args:
@@ -204,6 +214,7 @@ spec:
     tools:
       - type: McpServer
         mcpServer:
+          apiGroup: kagent.dev
           name: mcp-add-two
           kind: MCPServer
           toolNames:
@@ -233,8 +244,27 @@ kubectl describe agent add-numbers-agent -n kagent
 
 ## Скріншоти
 
-Нижче — знімки екрана з проходження лабораторної (оригінальні файли з `~/Movies/Screenshot 2026-03-23 at … .png` скопійовані в репозиторій як `docs/images/lab/screenshot-*.png`).
+Знімки лежать у каталозі репозиторію **`images/lab/`** (оригінали можна зберегти з macOS у `~/Movies/Screenshot … .png` і скопіювати сюди).
 
+### Успішний результат (kagent + MCP `add_two_numbers`)
+
+Після налаштування моделі, Secret з `OPENAI_API_KEY`, деплою `mcp-add-two` та агента `add-numbers-agent` очікується така поведінка:
+
+1. **kagent UI** — запит *«склади 8 та 77»*, виклик інструмента `add_two_numbers` з `a: 8`, `b: 77`, результат **85** і текстова відповідь агента.
+
+   ![kagent: успішний виклик add_two_numbers (8 + 77 = 85)](images/lab/screenshot-success-160403.png)
+
+2. **kagent UI** — кілька успішних діалогів (у т.ч. додатковий приклад з від’ємним числом).
+
+   ![kagent: кілька успішних запитів до add-numbers-agent](images/lab/screenshot-success-160445.png)
+
+3. **k9s** — поди в namespace `kagent` у стані `Running` / `Ready`, зокрема `mcp-add-two` та `add-numbers-agent`.
+
+   ![k9s: поди kagent (mcp-add-two, add-numbers-agent)](images/lab/screenshot-success-160451.png)
+
+---
+
+### Інші кроки лабораторної
 
 1. ![Скріншот 2](images/lab/screenshot-120856.png)
 2. ![Скріншот 3](images/lab/screenshot-121048.png)

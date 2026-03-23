@@ -12,6 +12,19 @@
 docker build -t add-two-mcp:latest docs/examples/add-two-mcp
 ```
 
+### Rancher Desktop: образ без registry
+
+Якщо под `mcp-add-two` у `ImagePullBackOff` (kubelet не бачить локальний образ), імпортуй tar у Docker daemon VM:
+
+```bash
+docker save add-two-mcp:latest -o "$HOME/add-two-mcp.tar"
+rdctl shell -- sh -lc 'sudo docker load -i '"$HOME"'/add-two-mcp.tar'
+kubectl delete pod -n kagent -l app.kubernetes.io/name=mcp-add-two
+kubectl get pods -n kagent | grep mcp-add-two
+```
+
+Детальніше: [`manifests/kagent/add-two-mcp/README.md`](../../../manifests/kagent/add-two-mcp/README.md) (розділ Rancher Desktop).
+
 ## Деплой маніфестів
 
 Повна інструкція (передумови, `kubectl apply`, перевірка, UI, видалення):
