@@ -94,6 +94,8 @@ kubectl get modelconfigs,mcpservers,agents -n kagent
 
 ## Крок 1 — Зібрати Docker-образи
 
+> **Передумова:** переконайтесь що Docker запущено та доступний з командного рядка (`docker info`). Для Rancher Desktop достатньо щоб застосунок був відкритий.
+
 Визначте шляхи до репозиторіїв:
 
 ```bash
@@ -134,7 +136,7 @@ done
 
 ## Крок 2 — Створити Secret із credentials
 
-MCP-сервери читають конфігурацію з Kubernetes Secret через механізм `secretRefs`. Secret монтується як файл `/secrets/<name>/dot-env` і зчитується через `python-dotenv`.
+MCP-сервери отримують конфігурацію через механізм `secretRefs` у kagent. Кожен ключ Secret стає окремою змінною середовища у контейнері (тому кожна змінна — окремий ключ у `stringData`).
 
 Скопіюйте приклад і заповніть реальними значеннями:
 
@@ -152,7 +154,11 @@ kubectl apply -f manifests/kagent/assistant/secrets.yaml
 
 > `secrets.yaml` захищено `.gitignore` — він не потрапить до репо.
 
-### Структура Secret (приклад для lesson-credits / tasks)
+### Структура Secret
+
+> **Важливо:** kagent інжектує кожен ключ Secret як окрему env var. Використовуйте **один ключ = одна змінна** (не multiline `dot-env`).
+
+Приклад для lesson-credits / tasks:
 
 ```yaml
 apiVersion: v1
@@ -162,25 +168,33 @@ metadata:
   namespace: kagent
 type: Opaque
 stringData:
-  dot-env: |
-    STORAGE_BACKEND=lakefs
-    LAKEFS_ENDPOINT=http://<lakefs-host>:8001
-    LAKEFS_ACCESS_KEY_ID=<access-key>
-    LAKEFS_SECRET_ACCESS_KEY=<secret-key>
-    LAKEFS_REPOSITORY=<repo-name>
-    LAKEFS_BRANCH=main
+  STORAGE_BACKEND: "lakefs"
+  LAKEFS_ENDPOINT: "http://<lakefs-host>:8001"
+  LAKEFS_ACCESS_KEY_ID: "<access-key>"        # замініть на реальний ключ
+  LAKEFS_SECRET_ACCESS_KEY: "<secret-key>"    # замініть на реальний ключ
+  LAKEFS_REPOSITORY: "<repo-name>"
+  LAKEFS_BRANCH: "main"
 ```
+
+Приклад для knowledge-base:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-knowledge-base-secrets
+  namespace: kagent
+type: Opaque
+stringData:
+  KB_API_BASE_URL: "http://<service-ip-or-hostname>:8000"
+  API_KEY: "<optional-api-key>"               # замініть на реальний ключ
+```
+
+> Готовий шаблон: `manifests/kagent/assistant/secrets-example.yaml`. Скопіюйте у `secrets.yaml` і замініть `<...>` на реальні значення. Файл захищено `.gitignore`.
 
 ## Крок 3 — Налаштувати KB_API_BASE_URL
 
-Якщо knowledge-base backend знаходиться поза кластером — перевірте `KB_API_BASE_URL` у Secret `mcp-knowledge-base-secrets`:
-
-```yaml
-stringData:
-  dot-env: |
-    KB_API_BASE_URL=http://<service-ip-or-hostname>:8000
-    API_KEY=<optional-api-key>
-```
+Якщо knowledge-base backend знаходиться поза кластером — перевірте `KB_API_BASE_URL` у Secret `mcp-knowledge-base-secrets` (приклад структури у розділі вище).
 
 ## Крок 5 — Застосувати маніфести
 
@@ -200,14 +214,42 @@ kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
 kubectl apply -f manifests/kagent/assistant/agent.yaml
 ```
 
-## Крок 6 — Перевірка
+## Крок 6 — Перевірка деплойменту
+
+### 6.1 Загальний стан ресурсів
 
 ```bash
-# Стан ресурсів
 kubectl get mcpservers,agents -n kagent
 kubectl get pods -n kagent | grep -E 'mcp-|NAME'
+```
 
-# Деталі
+Очікується: поди у стані `Running`, агент `Ready` / `Accepted`.
+
+### 6.2 Перевірка env vars у подах (storage backend)
+
+Критично переконатись що секрети правильно інжектовано і `STORAGE_BACKEND=lakefs`:
+
+```bash
+# Перевірте кожен MCP-сервер
+for svc in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
+  POD=$(kubectl get pod -n kagent -l app.kubernetes.io/name=$svc -o name | head -1)
+  echo "=== $svc ==="
+  kubectl exec -n kagent "$POD" -- env | grep -E 'STORAGE|LAKEFS|KB_API|ENABLE_DELETE'
+done
+```
+
+Очікуваний вивід для lesson-credits / tasks:
+```
+STORAGE_BACKEND=lakefs
+LAKEFS_ENDPOINT=http://...
+LAKEFS_ACCESS_KEY_ID=...
+ENABLE_DELETE_TOOLS=0
+```
+
+### 6.3 Логи та деталі
+
+```bash
+# Деталі CRD
 kubectl describe mcpserver mcp-knowledge-base -n kagent
 kubectl describe mcpserver mcp-lesson-credits  -n kagent
 kubectl describe mcpserver mcp-tasks           -n kagent
@@ -219,7 +261,17 @@ kubectl logs -n kagent -l app.kubernetes.io/name=mcp-lesson-credits  --tail=30
 kubectl logs -n kagent -l app.kubernetes.io/name=mcp-tasks           --tail=30
 ```
 
-Очікується: поди у стані `Running`, агент `Ready` / `Accepted`.
+### 6.4 Функціональна перевірка через UI
+
+Після переходу в kagent UI → assistant-agent виконайте тестові запити:
+
+| Сервер | Тестовий запит | Очікуваний результат |
+|--------|---------------|---------------------|
+| knowledge-base | "Скільки документів у базі знань?" | Число документів з LakeFS/backend |
+| lesson-credits | "Скільки уроків залишилось?" | Баланс з LakeFS |
+| tasks | "Покажи всі workspaces" | Список воркспейсів |
+
+Якщо відповіді відповідають реальним даним — деплоймент успішний.
 
 ## Крок 7 — Відкрити kagent UI
 
@@ -237,7 +289,7 @@ kubectl -n kagent port-forward svc/kagent-ui 8089:8080
 
 Браузер: **http://127.0.0.1:8089/** → оберіть **assistant-agent**.
 
-> **Примітка:** Gateway слухає на порту `8089` (змінено з `80` через конфлікт із SSH-тунелем Rancher Desktop). Якщо після перезавантаження кластеру UI недоступний — дивіться розділ Troubleshooting нижче.
+> **Примітка щодо порту 8089:** Gateway налаштовано на порту `8089` замість стандартного `80`. Причина: порт `80` конфліктує з SSH-тунелем Rancher Desktop — pod `svclb-agentgateway-external` не стартує через `EADDRINUSE`. Якщо після перезавантаження кластеру UI недоступний — Flux CD міг повернути конфігурацію назад; дивіться розділ Troubleshooting → "kagent UI недоступний".
 
 ### Приклади запитів для перевірки
 
@@ -292,6 +344,43 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.64.4:8089/
 ```
 
 > Після перезавантаження кластеру потрібно повторити ці 3 команди.
+
+### MCP-сервер запустився, але повертає порожні дані / "local storage"
+
+Симптом: агент звертається до MCP, але дані не відповідають тому що видно у веб-інтерфейсі сховища.
+
+Причина: `STORAGE_BACKEND=local` з Dockerfile перекриває значення з Secret, якщо Secret застосовано неправильно.
+
+```bash
+# 1. Перевірте що Secret існує і містить правильні ключі
+kubectl get secret mcp-lesson-credits-secrets -n kagent -o yaml
+
+# 2. Перевірте env vars у живому поді (має бути STORAGE_BACKEND=lakefs)
+POD=$(kubectl get pod -n kagent -l app.kubernetes.io/name=mcp-lesson-credits -o name | head -1)
+kubectl exec -n kagent "$POD" -- env | grep STORAGE
+
+# 3. Якщо STORAGE_BACKEND=local — видаліть і перестворіть Secret з окремими ключами
+kubectl delete secret mcp-lesson-credits-secrets -n kagent
+kubectl apply -f manifests/kagent/assistant/secrets.yaml
+
+# 4. Перезапустіть деплоймент
+kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
+```
+
+### Сервіс недоступний / под у стані CrashLoopBackOff
+
+```bash
+# Подивитись events пода
+kubectl describe pod -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
+
+# Останні логи до краш-ресету
+kubectl logs -n kagent -l app.kubernetes.io/name=mcp-lesson-credits --previous --tail=50
+```
+
+Типові причини:
+- Неправильний `image:` tag — образ не знайдено (`ErrImagePull`)
+- Відсутній Secret — `secretRef` посилається на неіснуючий ресурс
+- Port 80 conflict (ServiceLB) — дивіться розділ "kagent UI недоступний"
 
 ### Швидка діагностика
 
