@@ -22,7 +22,7 @@
     │ -base   │ │credits  │ │ Task Manager    │
     │         │ │         │ │ workspaces,     │
     │ Obsidian│ │ English │ │ boards, cards   │
-    │ vault   │ │  Mary   │ │ comments, etc.  │
+    │ vault   │ │  ***   │ │ comments, etc.  │
     └────┬────┘ └────┬────┘ └────────┬────────┘
          │           │               │
     HTTP API    local/lakeFS    local/lakeFS
@@ -301,8 +301,8 @@ kubectl -n kagent port-forward svc/kagent-ui 8089:8080
 
 **Lesson Credits:**
 ```
-Скільки уроків English. Mary залишилось?
-Спиши 1 урок для English. Mary
+Скільки уроків English. *** залишилось?
+Спиши 1 урок для English. ***
 ```
 
 **Task Manager:**
