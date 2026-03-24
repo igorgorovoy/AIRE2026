@@ -21,6 +21,7 @@ spec:
       - /app/mcp-servers-lesson-credits/server.py
     env:
       TASKS_ENV_FILE: "/secrets/mcp-lesson-credits-secrets/dot-env"
+      ENABLE_DELETE_TOOLS: "0"
     secretRefs:
       - name: mcp-lesson-credits-secrets
   stdioTransport: {}

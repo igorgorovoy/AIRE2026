@@ -201,28 +201,38 @@ kubectl delete -k manifests/kagent/assistant
 
 Тул `tasks_delete_card` **завжди видно** в MCP (декоратор `@mcp.tool()` безумовний) — агент може його бачити і викликати. Але фактичне видалення **заблоковано за замовчуванням**.
 
-**Поточний стан захисту:**
+**Delete-тули по серверах:**
+
+| Сервер | Тул | Guard | Стан |
+|--------|-----|-------|------|
+| `mcp-tasks` | `tasks_delete_card` | `ENABLE_DELETE_TOOLS` | ✅ заблоковано (`=0`) |
+| `mcp-lesson-credits` | `lessons_delete_transaction` | `ENABLE_DELETE_TOOLS` | ✅ заблоковано (`=0`) |
+| `mcp-knowledge-base` | — | — | ✅ delete-тулів нема |
+
+**Поточний стан захисту (обидва сервери):**
 
 | Рівень | Значення | Результат |
 |--------|----------|-----------|
-| Container env (`mcpserver-tasks.yaml`) | `ENABLE_DELETE_TOOLS=0` | `False` |
+| Container env (manifest) | `ENABLE_DELETE_TOOLS=0` | `False` |
 | Secret `dot-env` | `ENABLE_DELETE_TOOLS=0` | `False` |
 | `server.py` перевірка | `"0" in ("1","true","yes")` | `False` |
 
-При виклику тул повертає: `"Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."` — без фактичного видалення даних.
+При виклику тули повертають: `"Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."` — без фактичного видалення даних.
 
 **Щоб увімкнути видалення** (навмисно):
 
 ```bash
-# Тимчасово — тільки до наступного рестарту pod
+# mcp-tasks — тимчасово
 kubectl set env deployment/mcp-tasks -n kagent ENABLE_DELETE_TOOLS=1
+# mcp-lesson-credits — тимчасово
+kubectl set env deployment/mcp-lesson-credits -n kagent ENABLE_DELETE_TOOLS=1
 
-# Постійно — через маніфест
-# у mcpserver-tasks.yaml змінити: ENABLE_DELETE_TOOLS: "1"
+# Постійно — змінити ENABLE_DELETE_TOOLS: "1" у відповідному mcpserver-*.yaml
 kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
+kubectl apply -f manifests/kagent/assistant/mcpserver-lesson-credits.yaml
 ```
 
-> **Обережно:** після увімкнення агент зможе видаляти картки без додаткового підтвердження.
+> **Обережно:** після увімкнення агент зможе видаляти дані без додаткового підтвердження.
 
 ### Дані зникають після рестарту поду
 

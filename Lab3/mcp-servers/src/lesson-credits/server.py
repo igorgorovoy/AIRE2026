@@ -8,6 +8,7 @@
 
 ENV:
   TASKS_ENV_FILE=.env.mcp — завантажити окремий конфіг (напр. для remote dev).
+  ENABLE_DELETE_TOOLS=1   — увімкнути інструменти видалення (lessons_delete_transaction).
 """
 
 import os
@@ -28,6 +29,8 @@ try:
             load_dotenv(_mcp_path, override=True)
 except ImportError:
     pass
+
+ENABLE_DELETE_TOOLS = os.environ.get("ENABLE_DELETE_TOOLS", "").lower() in ("1", "true", "yes")
 
 from mcp.server.fastmcp import FastMCP
 
@@ -160,7 +163,9 @@ def lessons_deduct(calendar_id: str, amount: int = 1, note: str = "") -> str:
 
 @mcp.tool()
 def lessons_delete_transaction(calendar_id: str, transaction_id: str) -> str:
-    """Видалити транзакцію (зворотна операція для виправлення помилок)."""
+    """Видалити транзакцію (зворотна операція для виправлення помилок). Потребує ENABLE_DELETE_TOOLS=1."""
+    if not ENABLE_DELETE_TOOLS:
+        return "Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."
     store = _get_calendar_store()
     cal = store.get_calendar(calendar_id)
     if not cal:
