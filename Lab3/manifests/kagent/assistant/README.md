@@ -201,3 +201,49 @@ kubectl delete -k manifests/kagent/assistant
 
 - За замовчуванням `STORAGE_BACKEND=local` → дані в `emptyDir` всередині контейнера.
 - Для persistence: змонтуйте `PersistentVolumeClaim` або переключіть на lakeFS.
+
+### `Unable to connect` / Gateway повертає 404
+
+**Симптом:** браузер не може відкрити `http://192.168.64.4:8089/`, або Gateway відповідає `404 route not found`.
+
+**Причина:** Flux CD керує Gateway через OCI-артефакт (`oci://ghcr.io/den-vasyliev/abox/releases`), а не через Git-файл. Після кожної Flux-синхронізації порт Gateway повертається на `80`, а ServiceLB pod (`svclb-agentgateway-external`) не може стартувати, бо порт 80 зайнятий SSH-тунелем Rancher Desktop.
+
+**Діагностика:**
+
+```bash
+# Перевірити поточний порт Gateway і ServiceLB pod
+kubectl get gateway agentgateway-external -n agentgateway-system \
+  -o jsonpath='{.spec.listeners[0].port}'
+kubectl get pods -n kube-system | grep svclb-agentgateway
+```
+
+**Виправлення:**
+
+```bash
+# 1. Зупинити Flux від перезапису Gateway
+flux suspend kustomization releases
+
+# 2. Перевести Gateway на порт 8089
+kubectl patch gateway agentgateway-external -n agentgateway-system \
+  --type='json' -p='[{"op":"replace","path":"/spec/listeners/0/port","value":8089}]'
+
+# 3. Перезапустити проксі (щоб перечитав XDS-маршрути)
+kubectl rollout restart deployment agentgateway-external -n agentgateway-system
+kubectl rollout status deployment agentgateway-external -n agentgateway-system
+```
+
+> **Після перезавантаження кластеру** Flux знову відновиться — повторіть кроки 1–3.
+
+**Перевірка:**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://192.168.64.4:8089/
+# Має повернути: 200
+```
+
+**Альтернатива без маніпуляцій з Flux** — port-forward напряму на UI:
+
+```bash
+kubectl -n kagent port-forward svc/kagent-ui 8089:8080
+# Браузер: http://127.0.0.1:8089/
+```
