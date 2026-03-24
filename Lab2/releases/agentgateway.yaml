@@ -41,7 +41,7 @@ spec:
   gatewayClassName: agentgateway
   listeners:
   - name: http
-    port: 80
+    port: 8089
     protocol: HTTP
     allowedRoutes:
       namespaces:
