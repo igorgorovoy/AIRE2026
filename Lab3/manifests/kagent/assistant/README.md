@@ -197,6 +197,33 @@ kubectl delete -k manifests/kagent/assistant
 - Образ `mcp-lesson-credits` / `mcp-tasks` зібрано не з кореня `agentic-ai-landing-zone`.
 - Перевірте, що аргумент `-f` вказує на правильний Dockerfile, а контекст збірки — корінь ALZ.
 
+### Інструменти видалення (`tasks_delete_card` та інші)
+
+Тул `tasks_delete_card` **завжди видно** в MCP (декоратор `@mcp.tool()` безумовний) — агент може його бачити і викликати. Але фактичне видалення **заблоковано за замовчуванням**.
+
+**Поточний стан захисту:**
+
+| Рівень | Значення | Результат |
+|--------|----------|-----------|
+| Container env (`mcpserver-tasks.yaml`) | `ENABLE_DELETE_TOOLS=0` | `False` |
+| Secret `dot-env` | `ENABLE_DELETE_TOOLS=0` | `False` |
+| `server.py` перевірка | `"0" in ("1","true","yes")` | `False` |
+
+При виклику тул повертає: `"Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."` — без фактичного видалення даних.
+
+**Щоб увімкнути видалення** (навмисно):
+
+```bash
+# Тимчасово — тільки до наступного рестарту pod
+kubectl set env deployment/mcp-tasks -n kagent ENABLE_DELETE_TOOLS=1
+
+# Постійно — через маніфест
+# у mcpserver-tasks.yaml змінити: ENABLE_DELETE_TOOLS: "1"
+kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
+```
+
+> **Обережно:** після увімкнення агент зможе видаляти картки без додаткового підтвердження.
+
 ### Дані зникають після рестарту поду
 
 - За замовчуванням `STORAGE_BACKEND=local` → дані в `emptyDir` всередині контейнера.
