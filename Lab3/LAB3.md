@@ -311,7 +311,7 @@ kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesso
 
 ### Стан кластера (k9s)
 
-Всі 31 під у `Running`, три MCP сервери (`mcp-lesson-credits`, `mcp-tasks`, `mcp-knowledge-base`) запущені з 0 рестартів — lakeFS підключено коректно:
+Всі 31 поди у `Running`, три MCP сервери (`mcp-lesson-credits`, `mcp-tasks`, `mcp-knowledge-base`) запущені з 0 рестартів — lakeFS підключено коректно:
 
 ![k9s cluster state](docs/screenshots/Screenshot%202026-03-24%20at%2022.45.23.png)
 
@@ -353,10 +353,6 @@ kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesso
 
 ---
 
-### Дані зникають після рестарту поду
-
-За замовчуванням `STORAGE_BACKEND=local` — дані живуть в `emptyDir` всередині контейнера.  
-Для persistence додайте `PersistentVolumeClaim` або переключіться на lakeFS.
 
 ### ModuleNotFoundError: agents / core
 
