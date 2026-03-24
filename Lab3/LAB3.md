@@ -309,6 +309,12 @@ kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesso
 
 Сесія після підключення MCP серверів до LakeFS (24 березня 2026).
 
+### Стан кластера (k9s)
+
+Всі 31 під у `Running`, три MCP сервери (`mcp-lesson-credits`, `mcp-tasks`, `mcp-knowledge-base`) запущені з 0 рестартів — lakeFS підключено коректно:
+
+![k9s cluster state](docs/screenshots/Screenshot%202026-03-24%20at%2022.45.23.png)
+
 ### Запит балансу уроків
 
 Агент викликає `lessons_list_calendars` та `lessons_get_balance`, отримує актуальні дані з lakeFS:
