@@ -1,0 +1,10 @@
+# Застосування: з кореня Lab3
+#   kubectl apply -k manifests/kagent/assistant
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kagent
+resources:
+  - mcpserver-knowledge-base.yaml
+  - mcpserver-lesson-credits.yaml
+  - mcpserver-tasks.yaml
+  - agent.yaml

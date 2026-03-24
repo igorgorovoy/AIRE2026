@@ -1,0 +1,26 @@
+# MCP-сервер Knowledge Base — доступ до Obsidian vault graph через HTTP backend.
+# Образ збирається з: Lab3/mcp-servers/src/knowledge-base/
+# Потребує запущений KB backend (KB_API_BASE_URL).
+#
+# КОНФІГУРАЦІЯ:
+#   Credentials беруться з Secret mcp-knowledge-base-secrets (секрет: secrets.yaml).
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-knowledge-base
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-knowledge-base:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/server.py
+    env:
+      TASKS_ENV_FILE: "/secrets/mcp-knowledge-base-secrets/dot-env"
+    secretRefs:
+      - name: mcp-knowledge-base-secrets
+  stdioTransport: {}
+  transportType: stdio

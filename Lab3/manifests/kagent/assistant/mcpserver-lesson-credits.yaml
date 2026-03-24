@@ -1,0 +1,27 @@
+# MCP-сервер Lesson Credits — облік уроків (поповнення, списання, баланс).
+# Образ збирається з кореня agentic-ai-landing-zone
+#   (використовує agents/, core/ як локальні пакети).
+# Dockerfile: Lab3/mcp-servers/src/lesson-credits/Dockerfile
+#
+# КОНФІГУРАЦІЯ STORAGE:
+#   Credentials беруться з Secret mcp-lesson-credits-secrets (секрет: secrets.yaml).
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-lesson-credits
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-lesson-credits:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/mcp-servers-lesson-credits/server.py
+    env:
+      TASKS_ENV_FILE: "/secrets/mcp-lesson-credits-secrets/dot-env"
+    secretRefs:
+      - name: mcp-lesson-credits-secrets
+  stdioTransport: {}
+  transportType: stdio

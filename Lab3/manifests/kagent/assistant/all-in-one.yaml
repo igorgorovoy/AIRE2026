@@ -1,0 +1,158 @@
+# 3 MCPServer + 1 Agent в одному файлі (еквівалент застосування всіх 4 YAML).
+# Потрібні локальні образи (див. README.md у цьому каталозі):
+#   mcp-knowledge-base:latest
+#   mcp-lesson-credits:latest
+#   mcp-tasks:latest
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-knowledge-base
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-knowledge-base:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/server.py
+    env:
+      - name: KB_API_BASE_URL
+        value: "http://kb-backend.default.svc.cluster.local:8000"
+      - name: API_KEY
+        value: ""
+  stdioTransport: {}
+  transportType: stdio
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-lesson-credits
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-lesson-credits:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/mcp-servers-lesson-credits/server.py
+    env:
+      - name: STORAGE_BACKEND
+        value: "local"
+  stdioTransport: {}
+  transportType: stdio
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-tasks
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-tasks:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/mcp-servers-tasks/server.py
+    env:
+      - name: STORAGE_BACKEND
+        value: "local"
+      - name: ENABLE_DELETE_TOOLS
+        value: "0"
+  stdioTransport: {}
+  transportType: stdio
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: assistant-agent
+  namespace: kagent
+spec:
+  description: >
+    Персональний AI-асистент з доступом до knowledge base (Obsidian vault),
+    обліку уроків (lesson credits) та task manager (workspaces/boards/cards).
+  type: Declarative
+  declarative:
+    modelConfig: default-model-config
+    systemMessage: |
+      Ти персональний AI-асистент з доступом до трьох систем:
+
+      1. **Knowledge Base** (Obsidian vault graph, backend на порту 8000).
+         Інструменти: kb_graph_get, kb_get_document, kb_list_documents,
+         kb_graph_rebuild, kb_edit_document.
+
+      2. **Lesson Credits** (облік уроків English. Mary).
+         Інструменти: lessons_list_calendars, lessons_get_balance,
+         lessons_top_up, lessons_deduct, lessons_delete_transaction.
+
+      3. **Task Manager** (workspaces, boards, lists, cards, comments).
+         Інструменти: tasks_list_workspaces, tasks_create_workspace,
+         tasks_update_workspace, tasks_list_boards, tasks_create_board,
+         tasks_update_board, tasks_move_board, tasks_list_lists,
+         tasks_create_list, tasks_update_list, tasks_move_list,
+         tasks_list_cards, tasks_create_card, tasks_update_card,
+         tasks_get_card, tasks_move_card, tasks_delete_card,
+         tasks_list_comments, tasks_add_comment, tasks_list_attachments,
+         tasks_add_attachment, tasks_sync_beads, tasks_get_board.
+
+      Правила роботи:
+      - Перед будь-якою записуючою операцією уточни деталі у користувача.
+      - Спершу отримай поточний стан (balance, list, board), потім пропонуй дію.
+      - Відповідай структуровано, у Markdown. Якщо щось незрозуміло — запитай.
+      - Для lesson credits завжди виводь поточний баланс після операції.
+      - Для task manager завжди підтверджуй id ресурсу перед переміщенням.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          name: mcp-knowledge-base
+          kind: MCPServer
+          toolNames:
+            - kb_graph_get
+            - kb_get_document
+            - kb_list_documents
+            - kb_graph_rebuild
+            - kb_edit_document
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          name: mcp-lesson-credits
+          kind: MCPServer
+          toolNames:
+            - lessons_list_calendars
+            - lessons_get_balance
+            - lessons_top_up
+            - lessons_deduct
+            - lessons_delete_transaction
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          name: mcp-tasks
+          kind: MCPServer
+          toolNames:
+            - tasks_list_workspaces
+            - tasks_create_workspace
+            - tasks_update_workspace
+            - tasks_list_boards
+            - tasks_create_board
+            - tasks_update_board
+            - tasks_move_board
+            - tasks_list_lists
+            - tasks_create_list
+            - tasks_update_list
+            - tasks_move_list
+            - tasks_list_cards
+            - tasks_create_card
+            - tasks_update_card
+            - tasks_get_card
+            - tasks_move_card
+            - tasks_delete_card
+            - tasks_list_comments
+            - tasks_add_comment
+            - tasks_list_attachments
+            - tasks_add_attachment
+            - tasks_sync_beads
+            - tasks_get_board

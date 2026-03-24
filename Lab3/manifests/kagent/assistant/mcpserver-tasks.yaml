@@ -1,0 +1,28 @@
+# MCP-сервер Task Manager — workspaces, boards, lists, cards, comments, attachments.
+# Образ збирається з кореня agentic-ai-landing-zone
+#   (використовує agents/, core/, scripts/ як локальні модулі).
+# Dockerfile: Lab3/mcp-servers/src/tasks/Dockerfile
+#
+# КОНФІГУРАЦІЯ STORAGE:
+#   Credentials беруться з Secret mcp-tasks-secrets (секрет: secrets.yaml).
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: mcp-tasks
+  namespace: kagent
+spec:
+  deployment:
+    image: mcp-tasks:latest
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    cmd: python
+    args:
+      - /app/mcp-servers-tasks/server.py
+    env:
+      TASKS_ENV_FILE: "/secrets/mcp-tasks-secrets/dot-env"
+      ENABLE_DELETE_TOOLS: "0"
+    secretRefs:
+      - name: mcp-tasks-secrets
+  stdioTransport: {}
+  transportType: stdio
