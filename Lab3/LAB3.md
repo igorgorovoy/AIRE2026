@@ -303,6 +303,50 @@ kubectl logs -n kagent -l app.kubernetes.io/name=kagent-controller --tail=100
 kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
 ```
 
+---
+
+## Демонстрація роботи агента
+
+Сесія після підключення MCP серверів до LakeFS (24 березня 2026).
+
+### Запит балансу уроків
+
+Агент викликає `lessons_list_calendars` та `lessons_get_balance`, отримує актуальні дані з lakeFS:
+
+![Запит балансу](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.00.png)
+
+### Відповідь: баланс та пропозиція дій
+
+Агент повертає поточний баланс (3 уроки) і пропонує варіанти:
+
+![Відповідь агента](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.07.png)
+
+### Історія транзакцій
+
+Запит `покажи історію платежів` — агент показує всі операції:
+
+![Початок історії](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.14.png)
+
+### Поповнення балансу
+
+Запит `поповни ще на 5 занять та покажи таблицю` — агент викликає `lessons_top_up`, баланс стає 8:
+
+![Поповнення](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.51.png)
+
+### Таблиця транзакцій після поповнення
+
+Повна таблиця: поповнення +12 у лютому, 9 списань і нове поповнення +5 сьогодні:
+
+![Таблиця транзакцій](docs/screenshots/Screenshot%202026-03-24%20at%2022.40.00.png)
+
+### Task Manager — список проєктів
+
+Запит `покажи список поточних проєктів` — агент викликає `tasks_list_workspaces` і повертає workspaces з lakeFS:
+
+![Список проєктів](docs/screenshots/Screenshot%202026-03-24%20at%2022.42.08.png)
+
+---
+
 ### Дані зникають після рестарту поду
 
 За замовчуванням `STORAGE_BACKEND=local` — дані живуть в `emptyDir` всередині контейнера.  
