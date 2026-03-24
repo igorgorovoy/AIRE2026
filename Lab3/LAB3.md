@@ -75,8 +75,10 @@ Lab3/
 | tasks | `STORAGE_BACKEND` | `local` | `local` або `lakefs` |
 | tasks | `ENABLE_DELETE_TOOLS` | `0` | `1` — увімкнути інструменти видалення |
 | lesson-credits, tasks | `LAKEFS_ENDPOINT` | — | для `STORAGE_BACKEND=lakefs` |
-| lesson-credits, tasks | `LAKEFS_ACCESS_KEY` | — | для lakeFS |
-| lesson-credits, tasks | `LAKEFS_SECRET_KEY` | — | для lakeFS |
+| lesson-credits, tasks | `LAKEFS_ACCESS_KEY_ID` | — | Access Key ID для lakeFS |
+| lesson-credits, tasks | `LAKEFS_SECRET_ACCESS_KEY` | — | Secret Key для lakeFS |
+| lesson-credits, tasks | `LAKEFS_REPOSITORY` | — | назва репозиторію lakeFS |
+| lesson-credits, tasks | `LAKEFS_BRANCH` | `main` | гілка lakeFS |
 
 ## Передумови
 
@@ -130,19 +132,57 @@ for img in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
 done
 ```
 
-## Крок 2 — Налаштувати KB_API_BASE_URL
+## Крок 2 — Створити Secret із credentials
 
-У файлі `manifests/kagent/assistant/mcpserver-knowledge-base.yaml` вкажіть актуальний URL backend-сервісу:
+MCP-сервери читають конфігурацію з Kubernetes Secret через механізм `secretRefs`. Secret монтується як файл `/secrets/<name>/dot-env` і зчитується через `python-dotenv`.
 
-```yaml
-env:
-  - name: KB_API_BASE_URL
-    value: "http://<service>.<namespace>.svc.cluster.local:8000"
+Скопіюйте приклад і заповніть реальними значеннями:
+
+```bash
+cp manifests/kagent/assistant/secrets-example.yaml \
+   manifests/kagent/assistant/secrets.yaml
+# відредагуйте secrets.yaml — вкажіть реальні endpoint, ключі тощо
 ```
 
-Або відредагуйте `all-in-one.yaml`, якщо використовуєте його.
+Застосуйте Secret **до** маніфестів MCP-серверів:
 
-## Крок 3 — Застосувати маніфести
+```bash
+kubectl apply -f manifests/kagent/assistant/secrets.yaml
+```
+
+> `secrets.yaml` захищено `.gitignore` — він не потрапить до репо.
+
+### Структура Secret (приклад для lesson-credits / tasks)
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-lesson-credits-secrets
+  namespace: kagent
+type: Opaque
+stringData:
+  dot-env: |
+    STORAGE_BACKEND=lakefs
+    LAKEFS_ENDPOINT=http://<lakefs-host>:8001
+    LAKEFS_ACCESS_KEY_ID=<access-key>
+    LAKEFS_SECRET_ACCESS_KEY=<secret-key>
+    LAKEFS_REPOSITORY=<repo-name>
+    LAKEFS_BRANCH=main
+```
+
+## Крок 3 — Налаштувати KB_API_BASE_URL
+
+Якщо knowledge-base backend знаходиться поза кластером — перевірте `KB_API_BASE_URL` у Secret `mcp-knowledge-base-secrets`:
+
+```yaml
+stringData:
+  dot-env: |
+    KB_API_BASE_URL=http://<service-ip-or-hostname>:8000
+    API_KEY=<optional-api-key>
+```
+
+## Крок 5 — Застосувати маніфести
 
 З **кореня Lab3** — обрати **один** варіант:
 
@@ -160,7 +200,7 @@ kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
 kubectl apply -f manifests/kagent/assistant/agent.yaml
 ```
 
-## Крок 4 — Перевірка
+## Крок 6 — Перевірка
 
 ```bash
 # Стан ресурсів
@@ -181,13 +221,23 @@ kubectl logs -n kagent -l app.kubernetes.io/name=mcp-tasks           --tail=30
 
 Очікується: поди у стані `Running`, агент `Ready` / `Accepted`.
 
-## Крок 5 — Відкрити kagent UI
+## Крок 7 — Відкрити kagent UI
 
-```bash
-kubectl -n agentgateway-system port-forward svc/agentgateway-external 8080:80
+Прямий доступ (Rancher Desktop):
+
+```
+http://192.168.64.4:8089/
 ```
 
-Браузер: **http://127.0.0.1:8080/** → оберіть **assistant-agent**.
+Або через port-forward (якщо зовнішній IP недоступний):
+
+```bash
+kubectl -n kagent port-forward svc/kagent-ui 8089:8080
+```
+
+Браузер: **http://127.0.0.1:8089/** → оберіть **assistant-agent**.
+
+> **Примітка:** Gateway слухає на порту `8089` (змінено з `80` через конфлікт із SSH-тунелем Rancher Desktop). Якщо після перезавантаження кластеру UI недоступний — дивіться розділ Troubleshooting нижче.
 
 ### Приклади запитів для перевірки
 
@@ -220,6 +270,28 @@ kubectl delete -k manifests/kagent/assistant
 ## Troubleshooting
 
 Детальний troubleshooting → [`manifests/kagent/assistant/README.md`](manifests/kagent/assistant/README.md).
+
+### kagent UI недоступний (`Unable to connect` / `404`)
+
+Flux CD регулярно перезаписує Gateway назад на порт `80` (читає з OCI-артефакту, не з Git). Порт `80` конфліктує з SSH-тунелем Rancher Desktop — ServiceLB pod не може стартувати.
+
+```bash
+# Зупинити Flux від перезаписів
+flux suspend kustomization releases
+
+# Перевести Gateway на порт 8089
+kubectl patch gateway agentgateway-external -n agentgateway-system \
+  --type='json' -p='[{"op":"replace","path":"/spec/listeners/0/port","value":8089}]'
+
+# Перезапустити проксі
+kubectl rollout restart deployment agentgateway-external -n agentgateway-system
+
+# Перевірка
+curl -s -o /dev/null -w "%{http_code}" http://192.168.64.4:8089/
+# Очікується: 200
+```
+
+> Після перезавантаження кластеру потрібно повторити ці 3 команди.
 
 ### Швидка діагностика
 
