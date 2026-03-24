@@ -20,7 +20,6 @@ spec:
     args:
       - /app/mcp-servers-tasks/server.py
     env:
-      TASKS_ENV_FILE: "/secrets/mcp-tasks-secrets/dot-env"
       ENABLE_DELETE_TOOLS: "0"
     secretRefs:
       - name: mcp-tasks-secrets
