@@ -1,0 +1,73 @@
+# Kagent Inventory — перелік AI ресурсів у кластері.
+# Застосовується на abox (або будь-якому кластері з kagent).
+#
+# Для перегляду ресурсів:
+#   kubectl get agents,mcpservers,modelconfigs -n kagent
+#   kubectl get agents -A -o wide
+#
+# Inventory API (якщо kagent UI доступний):
+#   curl http://<kagent-ui>:8080/api/agents
+#   curl http://<kagent-ui>:8080/api/mcpservers
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-inventory-config
+  namespace: kagent
+  labels:
+    app.kubernetes.io/part-of: aire2026-lab4
+data:
+  inventory.yaml: |
+    # AI Resource Inventory — Lab4
+    # Describes the AI resources deployed in the cluster.
+
+    agents:
+      - name: assistant-agent
+        type: kagent (MCP-based, Lab3)
+        namespace: kagent
+        skills:
+          - knowledge-base (5 tools)
+          - lesson-credits (5 tools)
+          - task-manager (26 tools)
+
+      - name: a2a-assistant-agent
+        type: A2A Protocol (Lab4)
+        namespace: a2a
+        endpoint: http://a2a-assistant-agent.a2a:9000
+        well_known: /.well-known/agent-card.json
+        skills:
+          - knowledge_base
+          - lesson_credits
+          - task_manager
+
+      - name: a2a-orchestrator-agent
+        type: A2A Protocol (Lab4)
+        namespace: a2a
+        endpoint: http://a2a-orchestrator-agent.a2a:9001
+        well_known: /.well-known/agent-card.json
+        skills:
+          - orchestration (agent discovery & delegation)
+
+    mcp_servers:
+      - name: mcp-knowledge-base
+        namespace: kagent
+        transport: stdio
+        tools: 5
+
+      - name: mcp-lesson-credits
+        namespace: kagent
+        transport: stdio
+        tools: 5
+
+      - name: mcp-tasks
+        namespace: kagent
+        transport: stdio
+        tools: 26
+
+    infrastructure:
+      - component: agentgateway
+        purpose: LLM Gateway (routing, observability)
+      - component: kagent
+        purpose: Kubernetes AI Agent operator (CRDs)
+      - component: a2a-protocol
+        purpose: Agent-to-Agent communication (Lab4)

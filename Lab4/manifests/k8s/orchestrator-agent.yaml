@@ -1,0 +1,57 @@
+# A2A Orchestrator Agent — Kubernetes deployment
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a2a-orchestrator-agent
+  namespace: a2a
+  labels:
+    app: a2a-orchestrator-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: a2a-orchestrator-agent
+  template:
+    metadata:
+      labels:
+        app: a2a-orchestrator-agent
+    spec:
+      containers:
+        - name: orchestrator-agent
+          image: a2a-orchestrator-agent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9001
+              protocol: TCP
+          env:
+            - name: A2A_AGENT_URLS
+              value: "http://a2a-assistant-agent.a2a.svc.cluster.local:9000"
+          readinessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: 9001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: 9001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: a2a-orchestrator-agent
+  namespace: a2a
+  labels:
+    app: a2a-orchestrator-agent
+spec:
+  selector:
+    app: a2a-orchestrator-agent
+  ports:
+    - port: 9001
+      targetPort: 9001
+      protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  assistant-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.assistant
+    ports:
+      - "9000:9000"
+    environment:
+      - KB_API_BASE_URL=${KB_API_BASE_URL:-http://host.docker.internal:8000}
+      - KB_API_KEY=${KB_API_KEY:-}
+    restart: unless-stopped
+
+  orchestrator-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    ports:
+      - "9001:9001"
+    environment:
+      - A2A_AGENT_URLS=http://assistant-agent:9000
+    depends_on:
+      - assistant-agent
+    restart: unless-stopped
