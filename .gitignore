@@ -1,12 +1,6 @@
 .env
 .env.*
 
-# Kubernetes secrets with real credentials
+# Kubernetes secrets з реальними credentials
 **/secrets.yaml
-
-**/__pycache__/
-*.py[cod]
-
-# Temporary build staging (ALZ deps copied by build.sh)
-.build-alz/
 
