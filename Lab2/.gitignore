@@ -35,6 +35,6 @@ terraform.rc
 # Claude
 CLAUDE.md
 
-# Великі записи asciinema (для лаби краще посилання на asciinema.org)
+# Large asciinema recordings (for the lab, prefer links to asciinema.org)
 docs/screencasts/*.cast
 

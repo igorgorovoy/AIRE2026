@@ -1,41 +1,41 @@
-# Деплой Assistant Agent — Knowledge Base + Lesson Credits + Task Manager
+# Deploy Assistant Agent — Knowledge Base + Lesson Credits + Task Manager
 
-Маніфести для **kagent**: 3 × `MCPServer` + 1 × `Agent`. Код Docker-образів: [`../../../mcp-servers/src/`](../../../mcp-servers/src/).
+**kagent** manifests: 3 × `MCPServer` + 1 × `Agent`. Docker image sources: [`../../../mcp-servers/src/`](../../../mcp-servers/src/).
 
-| Файл | Опис |
-|------|------|
+| File | Description |
+|------|-------------|
 | `mcpserver-knowledge-base.yaml` | `MCPServer` `mcp-knowledge-base` |
 | `mcpserver-lesson-credits.yaml` | `MCPServer` `mcp-lesson-credits` |
 | `mcpserver-tasks.yaml` | `MCPServer` `mcp-tasks` |
-| `agent.yaml` | `Agent` `assistant-agent` (посилається на 3 MCP-сервери) |
-| `kustomization.yaml` | Kustomize: застосувати всі 4 ресурси |
-| `all-in-one.yaml` | Всі 4 ресурси в одному файлі |
+| `agent.yaml` | `Agent` `assistant-agent` (references 3 MCP servers) |
+| `kustomization.yaml` | Kustomize: apply all 4 resources |
+| `all-in-one.yaml` | All 4 resources in one file |
 
-## Передумови
+## Prerequisites
 
-1. Кластер уже має **kagent** (namespace `kagent`, CRD `mcpservers`, `agents`).
-2. Є **ModelConfig** `default-model-config`:
+1. Cluster has **kagent** (namespace `kagent`, CRDs `mcpservers`, `agents`).
+2. **ModelConfig** `default-model-config`:
 
    ```bash
    kubectl get modelconfigs -n kagent
    ```
 
-3. Налаштований **Secret** з `OPENAI_API_KEY` (або іншим провайдером).
-4. Для `mcp-knowledge-base`: запущений KB backend і відомий його URL.
+3. **Secret** with `OPENAI_API_KEY` (or another provider).
+4. For `mcp-knowledge-base`: KB backend running and URL known.
 
-## 1. Зібрати Docker-образи
+## 1. Build Docker images
 
-### mcp-knowledge-base (автономний)
+### mcp-knowledge-base (standalone)
 
 ```bash
-# з кореня Lab3
+# from Lab3 root
 docker build -t mcp-knowledge-base:latest mcp-servers/src/knowledge-base
 ```
 
-### mcp-lesson-credits та mcp-tasks (потребують agentic-ai-landing-zone)
+### mcp-lesson-credits and mcp-tasks (require agentic-ai-landing-zone)
 
-Обидва сервери мають залежності (`agents/`, `core/`) з проєкту `agentic-ai-landing-zone`.  
-Збірка виконується **з кореня того проєкту** із вказівкою `-f` на Dockerfile.
+Both depend on `agents/`, `core/` from `agentic-ai-landing-zone`.  
+Build **from that repo root** with `-f` pointing at the Dockerfile.
 
 ```bash
 ALZ=/path/to/agentic-ai-landing-zone
@@ -48,10 +48,10 @@ docker build -t mcp-tasks:latest \
   -f "$LAB3/mcp-servers/src/tasks/Dockerfile" "$ALZ"
 ```
 
-### Rancher Desktop / k3s (без реєстру)
+### Rancher Desktop / k3s (no registry)
 
-Для Rancher Desktop образ, зібраний через `docker build`, як правило, видно Kubernetes.  
-Якщо под у стані `ImagePullBackOff` — завантажте образ у VM вручну:
+Images from `docker build` are usually visible to Kubernetes.  
+If the pod is `ImagePullBackOff`, load the image into the VM:
 
 ```bash
 docker save mcp-knowledge-base:latest  -o ~/mcp-knowledge-base.tar
@@ -63,9 +63,9 @@ rdctl shell -- sh -lc 'sudo docker load -i ~/mcp-lesson-credits.tar'
 rdctl shell -- sh -lc 'sudo docker load -i ~/mcp-tasks.tar'
 ```
 
-## 2. Налаштувати KB_API_BASE_URL
+## 2. Set KB_API_BASE_URL
 
-У `mcpserver-knowledge-base.yaml` (і `all-in-one.yaml`) замініть `KB_API_BASE_URL` на актуальний URL backend-сервісу:
+In `mcpserver-knowledge-base.yaml` (and `all-in-one.yaml`) set `KB_API_BASE_URL` to your backend URL:
 
 ```yaml
 env:
@@ -73,25 +73,25 @@ env:
     value: "http://<service>.<namespace>.svc.cluster.local:8000"
 ```
 
-Якщо backend поза кластером — вкажіть зовнішній URL або IP.
+If the backend is outside the cluster, use an external URL or IP.
 
-## 3. Застосувати маніфести
+## 3. Apply manifests
 
-З **кореня Lab3** — **один** із варіантів:
+From **Lab3 root**, pick **one** option:
 
-### Варіант A — один файл
+### Option A — single file
 
 ```bash
 kubectl apply -f manifests/kagent/assistant/all-in-one.yaml
 ```
 
-### Варіант B — Kustomize
+### Option B — Kustomize
 
 ```bash
 kubectl apply -k manifests/kagent/assistant
 ```
 
-### Варіант C — по черзі (MCPServer → Agent)
+### Option C — sequential (MCPServer → Agent)
 
 ```bash
 kubectl apply -f manifests/kagent/assistant/mcpserver-knowledge-base.yaml
@@ -100,7 +100,7 @@ kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
 kubectl apply -f manifests/kagent/assistant/agent.yaml
 ```
 
-## 4. Перевірка
+## 4. Verification
 
 ```bash
 kubectl get mcpservers,agents -n kagent
@@ -112,175 +112,169 @@ kubectl describe mcpserver mcp-tasks           -n kagent
 kubectl describe agent     assistant-agent     -n kagent
 ```
 
-Очікується: всі поди у стані `Running`, агент `Ready` / `Accepted`.
+Expected: pods `Running`, agent `Ready` / `Accepted`.
 
-## 5. Сервіси та доступ
+## 5. Services and access
 
-### Зовнішній доступ (LoadBalancer)
+### External access (LoadBalancer)
 
-| Сервіс | URL | Що це |
-|--------|-----|-------|
-| **kagent UI** | `http://192.168.64.4:8089/` | Веб-інтерфейс kagent |
-| **kagent API** | `http://192.168.64.4:8089/api` | REST API kagent |
+| Service | URL | Description |
+|---------|-----|-------------|
+| **kagent UI** | `http://192.168.64.4:8089/` | kagent web UI |
+| **kagent API** | `http://192.168.64.4:8089/api` | kagent REST API |
 | **Traefik HTTP** | `http://192.168.64.4:80` | Ingress controller |
 | **Traefik HTTPS** | `https://192.168.64.4:443` | Ingress controller |
 
-> `192.168.64.4` — External IP Rancher Desktop. Уточнити: `kubectl get svc -n agentgateway-system agentgateway-external`
+> `192.168.64.4` — Rancher Desktop external IP. Verify: `kubectl get svc -n agentgateway-system agentgateway-external`
 
-### Агенти (ClusterIP, namespace `kagent`)
+### Agents (ClusterIP, namespace `kagent`)
 
-| Сервіс | Port | Опис |
-|--------|------|------|
-| `assistant-agent` | 8080 | Наш агент (Lab3) |
-| `k8s-agent` | 8080 | Kubernetes агент |
-| `observability-agent` | 8080 | Observability агент |
-| `promql-agent` | 8080 | PromQL агент |
-| `helm-agent` | 8080 | Helm агент |
+| Service | Port | Description |
+|---------|------|-------------|
+| `assistant-agent` | 8080 | Our agent (Lab3) |
+| `k8s-agent` | 8080 | Kubernetes agent |
+| `observability-agent` | 8080 | Observability agent |
+| `promql-agent` | 8080 | PromQL agent |
+| `helm-agent` | 8080 | Helm agent |
 | `kagent-grafana-mcp` | 8000 | Grafana MCP |
 
-### MCP-сервери (namespace `kagent`)
+### MCP servers (namespace `kagent`)
 
-| Сервіс | Port | Опис |
-|--------|------|------|
+| Service | Port | Description |
+|---------|------|-------------|
 | `mcp-knowledge-base` | 3000 | Knowledge Base (Lab3) |
 | `mcp-lesson-credits` | 3000 | Lesson Credits (Lab3) |
 | `mcp-tasks` | 3000 | Task Manager (Lab3) |
 
-### Відкрити kagent UI
+### Open kagent UI
 
-Прямий доступ (Rancher Desktop):
+Direct (Rancher Desktop):
 ```
 http://192.168.64.4:8089/
 ```
 
-Або через port-forward (якщо External IP недоступний):
+Or port-forward if external IP is unavailable:
 ```bash
 kubectl -n agentgateway-system port-forward svc/agentgateway-external 8089:8089
 ```
-Браузер: **http://127.0.0.1:8089/** → оберіть агента **assistant-agent**.
+Browser: **http://127.0.0.1:8089/** → select **assistant-agent**.
 
-Приклади запитів:
-- *«Скільки уроків залишилось у English. Mary?»*
-- *«Покажи список відкритих карток на дошці X»*
-- *«Знайди документ про AWS у knowledge base»*
+Sample prompts:
+- *"How many lessons are left for English. Mary?"*
+- *"Show open cards on board X"*
+- *"Find the AWS document in the knowledge base"*
 
-## 6. Видалити (за потреби)
+## 6. Remove (optional)
 
 ```bash
 kubectl delete -f manifests/kagent/assistant/all-in-one.yaml
-# або
+# or
 kubectl delete -k manifests/kagent/assistant
 ```
 
 ## Troubleshooting
 
-### `Failed to create MCP session` / `TaskGroup` у UI
+### `Failed to create MCP session` / `TaskGroup` in UI
 
-1. Перевір, чи всі MCPServer поди у `Running`:
+1. Check all MCPServer pods are `Running`:
    ```bash
    kubectl get pods -n kagent | grep mcp
    kubectl logs -n kagent -l app.kubernetes.io/name=mcp-lesson-credits --tail=50
    ```
-2. Перевір контролер:
+2. Check controller:
    ```bash
    kubectl logs -n kagent -l app.kubernetes.io/name=kagent-controller --tail=100
    ```
-3. Ім'я інструменту в `toolNames` має точно збігатися з назвою в `server.py` (`@mcp.tool()`).
+3. Tool names in `toolNames` must match `server.py` (`@mcp.tool()`).
 
 ### `ImagePullBackOff`
 
-- Переконайтесь, що `imagePullPolicy: IfNotPresent` задано.
-- Для k3s/Rancher Desktop: завантажте образ через `docker save` + `rdctl shell` (див. розділ 1).
+- Ensure `imagePullPolicy: IfNotPresent` is set.
+- For k3s/Rancher Desktop: load image via `docker save` + `rdctl shell` (see section 1).
 
-### `ModuleNotFoundError: agents` або `core`
+### `ModuleNotFoundError: agents` or `core`
 
-- Образ `mcp-lesson-credits` / `mcp-tasks` зібрано не з кореня `agentic-ai-landing-zone`.
-- Перевірте, що аргумент `-f` вказує на правильний Dockerfile, а контекст збірки — корінь ALZ.
+- Image `mcp-lesson-credits` / `mcp-tasks` was not built from `agentic-ai-landing-zone` root.
+- Ensure `-f` points to the correct Dockerfile and build context is ALZ root.
 
-### Інструменти видалення (`tasks_delete_card` та інші)
+### Delete tools (`tasks_delete_card` and others)
 
-Тул `tasks_delete_card` **завжди видно** в MCP (декоратор `@mcp.tool()` безумовний) — агент може його бачити і викликати. Але фактичне видалення **заблоковано за замовчуванням**.
+Tool `tasks_delete_card` is **always visible** in MCP (`@mcp.tool()` unconditional) — the agent may call it. Actual deletion is **disabled by default**.
 
-**Delete-тули по серверах:**
+**Delete tools per server:**
 
-| Сервер | Тул | Guard | Стан |
-|--------|-----|-------|------|
-| `mcp-tasks` | `tasks_delete_card` | `ENABLE_DELETE_TOOLS` | ✅ заблоковано (`=0`) |
-| `mcp-lesson-credits` | `lessons_delete_transaction` | `ENABLE_DELETE_TOOLS` | ✅ заблоковано (`=0`) |
-| `mcp-knowledge-base` | — | — | ✅ delete-тулів нема |
+| Server | Tool | Guard | State |
+|--------|------|-------|-------|
+| `mcp-tasks` | `tasks_delete_card` | `ENABLE_DELETE_TOOLS` | blocked (`=0`) |
+| `mcp-lesson-credits` | `lessons_delete_transaction` | `ENABLE_DELETE_TOOLS` | blocked (`=0`) |
+| `mcp-knowledge-base` | — | — | no delete tools |
 
-**Поточний стан захисту (обидва сервери):**
+**Protection stack:**
 
-| Рівень | Значення | Результат |
-|--------|----------|-----------|
+| Level | Value | Result |
+|-------|-------|--------|
 | Container env (manifest) | `ENABLE_DELETE_TOOLS=0` | `False` |
 | Secret `dot-env` | `ENABLE_DELETE_TOOLS=0` | `False` |
-| `server.py` перевірка | `"0" in ("1","true","yes")` | `False` |
+| `server.py` check | `"0" in ("1","true","yes")` | `False` |
 
-При виклику тули повертають: `"Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."` — без фактичного видалення даних.
+When invoked, tools return: `"Deletion disabled. Set ENABLE_DELETE_TOOLS=1 in .env."` — no data is deleted.
 
-**Щоб увімкнути видалення** (навмисно):
+**To enable deletion** (intentional):
 
 ```bash
-# mcp-tasks — тимчасово
 kubectl set env deployment/mcp-tasks -n kagent ENABLE_DELETE_TOOLS=1
-# mcp-lesson-credits — тимчасово
 kubectl set env deployment/mcp-lesson-credits -n kagent ENABLE_DELETE_TOOLS=1
 
-# Постійно — змінити ENABLE_DELETE_TOOLS: "1" у відповідному mcpserver-*.yaml
+# Persistent — set ENABLE_DELETE_TOOLS: "1" in mcpserver-*.yaml
 kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
 kubectl apply -f manifests/kagent/assistant/mcpserver-lesson-credits.yaml
 ```
 
-> **Обережно:** після увімкнення агент зможе видаляти дані без додаткового підтвердження.
+> **Caution:** the agent can delete data without extra confirmation.
 
-### Дані зникають після рестарту поду
+### Data lost after pod restart
 
-- За замовчуванням `STORAGE_BACKEND=local` → дані в `emptyDir` всередині контейнера.
-- Для persistence: змонтуйте `PersistentVolumeClaim` або переключіть на lakeFS.
+- Default `STORAGE_BACKEND=local` → data in `emptyDir` inside the container.
+- For persistence: mount a `PersistentVolumeClaim` or switch to lakeFS.
 
-### `Unable to connect` / Gateway повертає 404
+### `Unable to connect` / Gateway returns 404
 
-**Симптом:** браузер не може відкрити `http://192.168.64.4:8089/`, або Gateway відповідає `404 route not found`.
+**Symptom:** browser cannot open `http://192.168.64.4:8089/`, or Gateway returns `404 route not found`.
 
-**Причина:** Flux CD керує Gateway через OCI-артефакт (`oci://ghcr.io/den-vasyliev/abox/releases`), а не через Git-файл. Після кожної Flux-синхронізації порт Gateway повертається на `80`, а ServiceLB pod (`svclb-agentgateway-external`) не може стартувати, бо порт 80 зайнятий SSH-тунелем Rancher Desktop.
+**Cause:** Flux CD manages Gateway via OCI artifact (`oci://ghcr.io/den-vasyliev/abox/releases`), not Git. After each sync the Gateway port resets to `80`, and ServiceLB (`svclb-agentgateway-external`) cannot bind because port 80 is taken by the Rancher Desktop SSH tunnel.
 
-**Діагностика:**
+**Diagnostics:**
 
 ```bash
-# Перевірити поточний порт Gateway і ServiceLB pod
 kubectl get gateway agentgateway-external -n agentgateway-system \
   -o jsonpath='{.spec.listeners[0].port}'
 kubectl get pods -n kube-system | grep svclb-agentgateway
 ```
 
-**Виправлення:**
+**Fix:**
 
 ```bash
-# 1. Зупинити Flux від перезапису Gateway
 flux suspend kustomization releases
 
-# 2. Перевести Gateway на порт 8089
 kubectl patch gateway agentgateway-external -n agentgateway-system \
   --type='json' -p='[{"op":"replace","path":"/spec/listeners/0/port","value":8089}]'
 
-# 3. Перезапустити проксі (щоб перечитав XDS-маршрути)
 kubectl rollout restart deployment agentgateway-external -n agentgateway-system
 kubectl rollout status deployment agentgateway-external -n agentgateway-system
 ```
 
-> **Після перезавантаження кластеру** Flux знову відновиться — повторіть кроки 1–3.
+> **After cluster reboot** Flux may resume — repeat steps 1–3.
 
-**Перевірка:**
+**Verify:**
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://192.168.64.4:8089/
-# Має повернути: 200
+# expect: 200
 ```
 
-**Альтернатива без маніпуляцій з Flux** — port-forward напряму на UI:
+**Alternative without Flux changes** — port-forward to UI:
 
 ```bash
 kubectl -n kagent port-forward svc/kagent-ui 8089:8080
-# Браузер: http://127.0.0.1:8089/
+# Browser: http://127.0.0.1:8089/
 ```

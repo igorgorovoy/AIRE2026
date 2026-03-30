@@ -1,69 +1,71 @@
-# Lab1 — Medium: agentgateway + kagent у Kubernetes
+# Lab1 — Medium: agentgateway + kagent on Kubernetes
 
-Helm-деплой agentgateway в Kubernetes кластері з трьома LLM backends (Gemini, Anthropic, OpenAI) та інтеграцією kagent для AI-агентів.
+Helm deploy of agentgateway in a Kubernetes cluster with three LLM backends (Gemini, Anthropic, OpenAI) and kagent integration for AI agents.
 
-## Структура
+## Layout
 
 ```
 Lab1/medium/
-├── run.sh                         # Єдиний скрипт деплою (кроки 1-8)
+├── run.sh                         # Single deploy script (steps 0–9)
 ├── README.md
 └── k8s/
     ├── agentgateway/
-    │   ├── secret.yaml            # Secret: API ключі (llm-api-keys)
-    │   ├── configmap.yaml         # ConfigMap: config.yaml для standalone-режиму
+    │   ├── secret.yaml            # Example Secret (reference; run.sh creates per-provider secrets)
+    │   ├── configmap.yaml         # ConfigMap: standalone-style config.yaml (reference)
     │   └── gateway.yaml           # Gateway + AgentgatewayBackends + HTTPRoute
     └── kagent/
         ├── kagent-model.yaml      # ModelConfig: agentgateway → Gemini
         └── kagent-agent.yaml      # Agent: k8s-agentgateway-agent
 ```
 
-## Передумови
+## Prerequisites
 
-| Інструмент | Встановлення |
-|------------|-------------|
+| Tool       | Install |
+|------------|---------|
 | `kubectl`  | https://kubernetes.io/docs/tasks/tools/ |
 | `helm`     | https://helm.sh/docs/intro/install/ |
-| `kagent`   | `brew install kagent` або [get-kagent script](https://kagent.dev/docs/kagent/getting-started/quickstart) |
-| K8s кластер | [Rancher Desktop](https://rancherdesktop.io/) (k3s) — вже встановлено |
+| `kagent`   | `brew install kagent` or [get-kagent script](https://kagent.dev/docs/kagent/getting-started/quickstart) |
+| K8s cluster | [Rancher Desktop](https://rancherdesktop.io/) (k3s) — assumed available |
 
-Rancher Desktop вже запущено (контекст `rancher-desktop`). Перевірте поточний контекст:
+Rancher Desktop should be running (context `rancher-desktop`). Verify:
+
 ```bash
-kubectl config current-context   # має бути rancher-desktop
+kubectl config current-context   # should be rancher-desktop
 kubectl cluster-info
 ```
 
-## Швидкий старт
+## Quick start
 
 ```bash
-# 1. API ключі (мінімум — Gemini)
+# 1. API keys (minimum — Gemini)
 export GEMINI_API_KEY=your-gemini-key
-export ANTHROPIC_API_KEY=your-anthropic-key   # опціонально
-export OPENAI_API_KEY=your-openai-key         # опціонально
+export ANTHROPIC_API_KEY=your-anthropic-key   # optional
+export OPENAI_API_KEY=your-openai-key         # optional
 
-# 2. Запуск деплою
+# 2. Deploy
 ./run.sh
 ```
 
 ---
 
-## Що робить `run.sh`
+## What `run.sh` does
 
-| Крок | Дія |
-|------|-----|
-| 0 | Перевірка `kubectl`, `helm`, `kagent`, підключення до кластера |
-| 1 | Перевірка API ключів |
-| 2 | Встановлення [Gateway API CRDs](https://gateway-api.sigs.k8s.io/) v1.4.0 |
+| Step | Action |
+|------|--------|
+| 0 | Check `kubectl`, `helm`, `kagent`, cluster connectivity |
+| 1 | Check API keys |
+| 2 | Install [Gateway API CRDs](https://gateway-api.sigs.k8s.io/) v1.4.0 |
 | 3 | Helm install `agentgateway-crds` + `agentgateway` v2.2.1 |
-| 4 | Kubernetes `Secret` `llm-api-keys` з API ключами |
-| 5 | `Gateway` + `AgentgatewayBackend` (gemini/anthropic/openai) + `HTTPRoute` |
-| 6 | `kagent install --profile demo` (вбудовані агенти) |
-| 7 | `ModelConfig` (agentgateway→Gemini) + `Agent` (k8s-agentgateway-agent) |
-| 8 | Виведення статусу та інструкцій |
+| 4 | Create `gemini-secret`, `anthropic-secret`, `openai-secret` in `agentgateway-system` |
+| 5 | Apply `Gateway` + `AgentgatewayBackend` (gemini/anthropic/openai) + `HTTPRoute` |
+| 6 | Helm install kagent with **demo agents disabled** (core only) |
+| 7 | `ModelConfig` (agentgateway→Gemini) + `Agent` `k8s-agentgateway-agent` |
+| 8 | Ingress for kagent UI and agentgateway |
+| 9 | Print status and access hints |
 
 ---
 
-## Архітектура
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -71,13 +73,13 @@ export OPENAI_API_KEY=your-openai-key         # опціонально
 │                                                                 │
 │  ┌──────────────┐    HTTPRoute     ┌─────────────────────────┐  │
 │  │    kagent    │ ──────────────▶  │   agentgateway-proxy    │  │
-│  │  (AI agents) │                  │   (Gateway API, :80)    │  │
+│  │  (AI agents) │                  │   (Gateway API, :8080)    │  │
 │  └──────────────┘                  └───────────┬─────────────┘  │
 │        │                                       │                │
 │        │ ModelConfig                   x-provider header        │
 │        ▼                               ┌───────┴───────┐        │
 │  agentgateway-proxy                    ▼               ▼        │
-│  (через svc URL)              ┌────────────┐  ┌──────────────┐  │
+│  (via svc URL)                ┌────────────┐  ┌──────────────┐  │
 │                               │   gemini   │  │  anthropic   │  │
 │                               │ (default)  │  │   openai     │  │
 │                               └─────┬──────┘  └──────┬───────┘  │
@@ -88,29 +90,29 @@ export OPENAI_API_KEY=your-openai-key         # опціонально
 
 ---
 
-## Тести
+## Tests
 
-### Port-forward для локального доступу
+### Port-forward for local access
 
 ```bash
 kubectl port-forward deployment/agentgateway-proxy \
   -n agentgateway-system 8080:8080
 ```
 
-> **Примітка для Rancher Desktop (k3s):** порт 80 зайнятий Traefik (вбудований ingress-controller k3s). Gateway налаштовано на порт **8080**.
+> **Rancher Desktop (k3s):** port 80 is often used by Traefik. This Gateway listens on **8080**.
 
-### Тест 1 — Gemini (за замовчуванням)
+### Test 1 — Gemini (default)
 
 ```bash
 curl localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gemini-2.5-flash",
-    "messages": [{"role": "user", "content": "Привіт! Що таке Kubernetes?"}]
+    "messages": [{"role": "user", "content": "Hi! What is Kubernetes?"}]
   }'
 ```
 
-### Тест 2 — Anthropic (x-provider header)
+### Test 2 — Anthropic (`x-provider` header)
 
 ```bash
 curl localhost:8080/v1/chat/completions \
@@ -118,11 +120,11 @@ curl localhost:8080/v1/chat/completions \
   -H "x-provider: anthropic" \
   -d '{
     "model": "claude-3-5-haiku-20241022",
-    "messages": [{"role": "user", "content": "Привіт!"}]
+    "messages": [{"role": "user", "content": "Hi!"}]
   }'
 ```
 
-### Тест 3 — OpenAI (x-provider header)
+### Test 3 — OpenAI (`x-provider` header)
 
 ```bash
 curl localhost:8080/v1/chat/completions \
@@ -130,86 +132,84 @@ curl localhost:8080/v1/chat/completions \
   -H "x-provider: openai" \
   -d '{
     "model": "gpt-4.1-nano",
-    "messages": [{"role": "user", "content": "Привіт!"}]
+    "messages": [{"role": "user", "content": "Hi!"}]
   }'
 ```
 
-### Тест 4 — kagent dashboard
+### Test 4 — kagent dashboard
 
 ```bash
 kagent dashboard
-# Відкриється http://localhost:8082
+# Opens http://localhost:8082 (port may vary)
 ```
 
-### Тест 5 — kagent invoke (вбудований helm-agent)
+### Test 5 — `kagent invoke` (custom agent)
+
+Demo agents including `helm-agent` are **disabled** by this script. Invoke the lab agent:
 
 ```bash
-# Список агентів
 kagent get agent
 
-# Запит до helm-agent
-kagent invoke -t "What Helm charts are in my cluster?" --agent helm-agent
-
-# Запит до власного агента через agentgateway
 kagent invoke \
-  -t "Які поди запущені в namespace agentgateway-system?" \
+  -t "What pods are running in namespace agentgateway-system?" \
   --agent k8s-agentgateway-agent
 ```
 
-### Перевірка ресурсів у кластері
+### Cluster resource checks
 
 ```bash
-# Всі ресурси agentgateway
+# All agentgateway resources
 kubectl get all -n agentgateway-system
 
-# Backends та HTTPRoutes
+# Backends and HTTPRoutes
 kubectl get agentgatewaybackend -n agentgateway-system
 kubectl get httproute -n agentgateway-system
 
-# Gateway статус
+# Gateway status
 kubectl get gateway agentgateway-proxy -n agentgateway-system
 
-# kagent агенти
+# kagent agents
 kubectl get agent -n kagent
 kubectl get modelconfig -n kagent
 ```
 
 ---
 
-## Secrets та ConfigMap
+## Secrets and ConfigMap
 
-### Secret (llm-api-keys)
+### Per-provider Secrets
 
-`run.sh` створює Secret безпосередньо з env-змінних:
+`run.sh` creates three secrets in `agentgateway-system`, each with key `Authorization`:
 
 ```bash
-kubectl create secret generic llm-api-keys \
+kubectl create secret generic gemini-secret \
   --namespace agentgateway-system \
-  --from-literal=GEMINI_API_KEY="${GEMINI_API_KEY}" \
-  --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
-  --from-literal=OPENAI_API_KEY="${OPENAI_API_KEY}"
+  --from-literal=Authorization="${GEMINI_API_KEY}"
+# anthropic-secret / openai-secret similarly (placeholders allowed if unused)
 ```
 
-> **Для production:** використовуйте [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) або External Secrets Operator замість `stringData` у YAML файлах.
+A `gemini-secret` is also created in the `kagent` namespace for the ModelConfig.
 
-### ConfigMap (agentgateway-config)
+> **Production:** prefer [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) or External Secrets instead of committing `stringData` in YAML.
 
-`k8s/agentgateway/configmap.yaml` — конфіг у форматі standalone (для довідки). У Kubernetes-режимі agentgateway керується через `AgentgatewayBackend` CRD та `HTTPRoute` — конфіг генерується автоматично контролером.
+### ConfigMap (`agentgateway-config`)
+
+`k8s/agentgateway/configmap.yaml` is standalone-style reference config. On Kubernetes, agentgateway is driven by `AgentgatewayBackend` and `HTTPRoute`; the controller builds the effective config.
 
 ---
 
-## Очищення
+## Cleanup
 
 ```bash
-# Видалити agentgateway
+# Remove agentgateway
 helm uninstall agentgateway agentgateway-crds -n agentgateway-system
 kubectl delete namespace agentgateway-system
 
-# Видалити kagent
+# Remove kagent
 kagent uninstall
 kubectl delete namespace kagent
 
-# Видалити kind кластер (якщо використовувався)
+# kind cluster (if you used kind)
 kind delete cluster
 ```
 
@@ -217,35 +217,35 @@ kind delete cluster
 
 ## Screenshots
 
-### ✅ Успішний запуск — kagent invoke (CLI)
+### Successful run — `kagent invoke` (CLI)
 
 ![kagent invoke RPG response](screenshots/06-kagent-invoke-rpg-response.png)
 
-> `kagent invoke` до агента `k8s-agentgateway-agent`: запит — RPG-сценарій з DevOps-інженерами. Агент (gemini-2.5-flash через agentgateway) згенерував повноцінну відповідь у форматі JSON з полем `artifacts[].parts[].text`. Це підтверджує повний ланцюг: `kagent → agentgateway-proxy → Gemini API`.
+> `kagent invoke` against `k8s-agentgateway-agent`: an RPG-style prompt with DevOps characters. The agent (gemini-2.5-flash via agentgateway) returned a full JSON response with `artifacts[].parts[].text`, confirming `kagent → agentgateway-proxy → Gemini API`.
 
 ---
 
-### ✅ Успішний запуск — kagent UI (веб-інтерфейс)
+### Successful run — kagent UI
 
 ![kagent UI RPG chat](screenshots/07-kagent-ui-rpg-chat.png)
 
-> kagent UI (`http://localhost:8090`) — той самий запит через веб-інтерфейс. Агент `kagent/k8s-agentgateway-agent` (gemini-2.5-flash) відповідає безпосередньо в чаті. Справа панель **Agent Details** показує підключену модель і що це RPG-майстер AIRE2026.
+> kagent UI — same style of chat. Agent `kagent/k8s-agentgateway-agent` (gemini-2.5-flash) replies in the thread. **Agent Details** shows the connected model and the AIRE2026 RPG persona.
 
 ---
 
-### 1. Навантаження кластера — CPU 100% (проблема з demo-агентами)
+### 1. Cluster overload — CPU 100% (demo agents)
 
 ![CPU overload](screenshots/01-cluster-overload-cpu.png)
 
-> Під час встановлення `kagent` з профілем `demo` всі CPU ядра одразу завантажились на 100%. SQLite-backend k3s (kine) не справлявся з потоком API-запитів від 10+ demo-агентів одночасно. Вирішення: використовувати `--profile minimal` або Helm install з явним `agents.<name>.enabled=false`.
+> Installing kagent with the `demo` profile saturated all CPU cores. k3s kine/SQLite could not keep up with API traffic from 10+ demo agents. **Fix:** use `--profile minimal` or Helm with `agents.<name>.enabled=false` (as in `run.sh`).
 
 ---
 
-### 2. Rancher Desktop — Deployments після деплою
+### 2. Rancher Desktop — Deployments after deploy
 
 ![Rancher Deployments](screenshots/02-rancher-deployments.png)
 
-> `agentgateway-system`: обидва деплойменти **Active** (1/1). Namespace `kagent`: demo-агенти у стані **Updating** — ознака проблеми з доступністю (недостатньо ресурсів або API-сервер перевантажений).
+> `agentgateway-system`: both deployments **Active** (1/1). In `kagent`, demo agents could sit in **Updating** when the API server or node is overloaded.
 
 ---
 
@@ -253,29 +253,29 @@ kind delete cluster
 
 ![Rancher Pods Running](screenshots/03-rancher-pods-running.png)
 
-> Всі pods зі статусом **Running**: `agentgateway`, `agentgateway-proxy`, `kagent-controller`, `kagent-ui`, `kagent-tools`, `kagent-grafana-mcp`, а також demo-агенти (argo, cilium, helm, istio, k8s). Cluster успішно підняв всі компоненти.
+> Pods **Running**: `agentgateway`, `agentgateway-proxy`, `kagent-controller`, `kagent-ui`, `kagent-tools`, `kagent-grafana-mcp`, plus demo agents when enabled.
 
 ---
 
-### 4. Rancher Desktop — OOMKilled (memory pressure)
+### 4. Rancher Desktop — OOMKilled
 
 ![OOMKilled pods](screenshots/04-rancher-pods-oomkilled.png)
 
-> Після нетривалої роботи demo-агенти та `agentgateway` перейшли у стан **OOMKilled** — k3s/Lima VM вичерпав ліміт пам'яті. Видно `agentgateway-74765575c4` та `agentgateway-proxy-6cfc96ccb7` — OOMKilled, поряд з `kagent-kmcp-controller-manager` — OOMKilled.
+> Under memory pressure, demo agents and `agentgateway` could become **OOMKilled** when the Lima VM RAM limit is too low.
 
 ---
 
-### 5. k9s — повний список pods з OOMKilled
+### 5. k9s — many pods OOMKilled
 
 ![k9s OOMKilled](screenshots/05-k9s-oomkilled.png)
 
-> k9s-вид (термінальний UI) показує 22 pods. Виділено червоним `agentgateway-74765575c4-ghq55` (OOMKilled). Також `cilium-debug-agent`, `kagent-kmcp-controller-manager`, `coredns` — OOMKilled. Це типова картина перевантаженого Rancher Desktop з k3s + SQLite при запуску повного стеку demo-агентів.
+> Typical view when Rancher Desktop + k3s + SQLite runs the full demo stack on limited resources.
 
-> **Висновок:** для стабільної роботи на локальному k3s треба або збільшити ліміти VM в Rancher Desktop (≥8GB RAM), або деплоїти лише мінімальний набір компонентів (`--profile minimal`).
+> **Takeaway:** raise Rancher Desktop VM RAM (e.g. ≥8GB) or deploy a **minimal** kagent stack only.
 
 ---
 
-## Посилання
+## Links
 
 - [agentgateway Kubernetes Quickstart](https://agentgateway.dev/docs/kubernetes/latest/quickstart/install)
 - [agentgateway LLM on K8s](https://agentgateway.dev/docs/kubernetes/latest/quickstart/llm)

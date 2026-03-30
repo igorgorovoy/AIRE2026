@@ -8,7 +8,7 @@ resource "helm_release" "flux_operator" {
   chart            = "flux-operator"
   create_namespace = true
 
-  # Flux Status Web UI (порт 9080) — https://fluxoperator.dev/web-ui/
+  # Flux Status Web UI (port 9080) — https://fluxoperator.dev/web-ui/
   set {
     name  = "web.enabled"
     value = "true"

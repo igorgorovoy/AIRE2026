@@ -1,4 +1,4 @@
-# Збірка: з каталогу add-two-mcp
+# Build from the add-two-mcp directory:
 #   docker build -t add-two-mcp:latest .
 FROM python:3.12-slim
 

@@ -1,2 +1,2 @@
-Макс:
-1. Виконати завдання досвідчених але з kagent gateway API https://agentgateway.dev/docs/kubernetes/main/
+Max:
+1. Complete the advanced track but use the kagent gateway API: https://agentgateway.dev/docs/kubernetes/main/

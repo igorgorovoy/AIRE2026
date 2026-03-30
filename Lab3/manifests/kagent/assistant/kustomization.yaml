@@ -1,4 +1,4 @@
-# Застосування: з кореня Lab3
+# Apply from Lab3 repo root:
 #   kubectl apply -k manifests/kagent/assistant
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

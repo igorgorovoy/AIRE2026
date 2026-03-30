@@ -22,9 +22,13 @@ spec:
           image: a2a-assistant-agent:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9000
+            - containerPort: 14000
               protocol: TCP
           env:
+            - name: A2A_ASSISTANT_PORT
+              value: "14000"
+            - name: A2A_PUBLIC_BASE_URL
+              value: "http://a2a-assistant-agent.a2a.svc.cluster.local:14000"
             - name: KB_API_BASE_URL
               valueFrom:
                 secretKeyRef:
@@ -40,13 +44,13 @@ spec:
           readinessProbe:
             httpGet:
               path: /.well-known/agent-card.json
-              port: 9000
+              port: 14000
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /.well-known/agent-card.json
-              port: 9000
+              port: 14000
             initialDelaySeconds: 10
             periodSeconds: 30
 ---
@@ -61,7 +65,7 @@ spec:
   selector:
     app: a2a-assistant-agent
   ports:
-    - port: 9000
-      targetPort: 9000
+    - port: 14000
+      targetPort: 14000
       protocol: TCP
   type: ClusterIP

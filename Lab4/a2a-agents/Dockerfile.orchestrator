@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/orchestrator-agent/ .
+COPY a2a_http_client.py .
 
 EXPOSE 14001
 

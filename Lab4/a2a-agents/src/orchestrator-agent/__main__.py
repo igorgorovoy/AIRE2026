@@ -1,7 +1,7 @@
 """A2A Orchestrator Agent server.
 
-Єдина точка входу для клієнта: передає запити Personal Assistant Agent через A2A.
-Асистент (Lab3) викликає інструменти та зовнішні API — оркестратор їх не викликає.
+Single client entry point: forwards requests to the Personal Assistant Agent over A2A.
+The assistant (Lab3) invokes tools and external APIs — the orchestrator does not.
 
 Usage:
     python -m orchestrator-agent
@@ -9,10 +9,10 @@ Usage:
     python src/orchestrator-agent/__main__.py
 
 Environment:
-    A2A_ASSISTANT_URL — базовий URL A2A Personal Assistant Agent
+    A2A_ASSISTANT_URL — base URL of the A2A Personal Assistant Agent
                         (default: http://localhost:14000)
-    A2A_AGENT_URLS   — застаріле: якщо A2A_ASSISTANT_URL порожній, береться перший URL
-                        зі списку через кому
+    A2A_AGENT_URLS   — legacy: if A2A_ASSISTANT_URL is empty, first URL
+                        from comma-separated list is used
 """
 
 import os
@@ -48,7 +48,7 @@ ASSISTANT_URL = _resolve_assistant_url()
 
 
 def _agent_card_url() -> str:
-    """Публічний URL оркестратора в Agent Card. У K8s задайте A2A_PUBLIC_BASE_URL."""
+    """Public orchestrator URL in Agent Card. Set A2A_PUBLIC_BASE_URL in K8s."""
     base = os.getenv("A2A_PUBLIC_BASE_URL", "").strip().rstrip("/")
     if base:
         return f"{base}/"
@@ -65,13 +65,13 @@ skill_orchestration = AgentSkill(
     id="orchestration",
     name="Agent Orchestration",
     description=(
-        "Приймає запити клієнта і через A2A передає їх Personal Assistant Agent; "
-        "асистент викликає інструменти (KB, уроки, задачі) для зовнішніх систем."
+        "Accepts client requests and forwards them to the Personal Assistant Agent over A2A; "
+        "the assistant invokes tools (KB, lessons, tasks) for external systems."
     ),
     tags=["orchestration", "delegation", "assistant", "a2a"],
     examples=[
-        "discover — показати Agent Card асистента",
-        "Покажи список документів (через асистента)",
+        "discover — show the assistant Agent Card",
+        "Show the list of documents (via assistant)",
         "help",
     ],
 )
@@ -83,9 +83,9 @@ skill_orchestration = AgentSkill(
 public_agent_card = AgentCard(
     name="Orchestrator Agent",
     description=(
-        "A2A-оркестратор: точка входу для клієнта. Усі завдання передаються "
-        "Personal Assistant Agent по протоколу A2A; асистент працює з інструментами "
-        "та зовнішніми системами (Knowledge Base, Lesson Credits, Task Manager)."
+        "A2A orchestrator: client entry point. All tasks are sent to the "
+        "Personal Assistant Agent over A2A; the assistant uses tools and "
+        "external systems (Knowledge Base, Lesson Credits, Task Manager)."
     ),
     url=_ORCH_ENDPOINT,
     preferred_transport="JSONRPC",

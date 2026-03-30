@@ -1,5 +1,5 @@
-# 3 MCPServer + 1 Agent в одному файлі (еквівалент застосування всіх 4 YAML).
-# Потрібні локальні образи (див. README.md у цьому каталозі):
+# 3 MCPServer + 1 Agent in one file (equivalent to applying all 4 YAMLs).
+# Requires local images (see README.md in this directory):
 #   mcp-knowledge-base:latest
 #   mcp-lesson-credits:latest
 #   mcp-tasks:latest
@@ -72,24 +72,24 @@ metadata:
   namespace: kagent
 spec:
   description: >
-    Персональний AI-асистент з доступом до knowledge base (Obsidian vault),
-    обліку уроків (lesson credits) та task manager (workspaces/boards/cards).
+    Personal AI assistant with access to knowledge base (Obsidian vault),
+    lesson credits, and task manager (workspaces/boards/cards).
   type: Declarative
   declarative:
     modelConfig: default-model-config
     systemMessage: |
-      Ти персональний AI-асистент з доступом до трьох систем:
+      You are a personal AI assistant with access to three systems:
 
-      1. **Knowledge Base** (Obsidian vault graph, backend на порту 8000).
-         Інструменти: kb_graph_get, kb_get_document, kb_list_documents,
+      1. **Knowledge Base** (Obsidian vault graph, backend on port 8000).
+         Tools: kb_graph_get, kb_get_document, kb_list_documents,
          kb_graph_rebuild, kb_edit_document.
 
-      2. **Lesson Credits** (облік уроків English. Mary).
-         Інструменти: lessons_list_calendars, lessons_get_balance,
+      2. **Lesson Credits** (English. Mary lesson tracking).
+         Tools: lessons_list_calendars, lessons_get_balance,
          lessons_top_up, lessons_deduct, lessons_delete_transaction.
 
       3. **Task Manager** (workspaces, boards, lists, cards, comments).
-         Інструменти: tasks_list_workspaces, tasks_create_workspace,
+         Tools: tasks_list_workspaces, tasks_create_workspace,
          tasks_update_workspace, tasks_list_boards, tasks_create_board,
          tasks_update_board, tasks_move_board, tasks_list_lists,
          tasks_create_list, tasks_update_list, tasks_move_list,
@@ -98,12 +98,12 @@ spec:
          tasks_list_comments, tasks_add_comment, tasks_list_attachments,
          tasks_add_attachment, tasks_sync_beads, tasks_get_board.
 
-      Правила роботи:
-      - Перед будь-якою записуючою операцією уточни деталі у користувача.
-      - Спершу отримай поточний стан (balance, list, board), потім пропонуй дію.
-      - Відповідай структуровано, у Markdown. Якщо щось незрозуміло — запитай.
-      - Для lesson credits завжди виводь поточний баланс після операції.
-      - Для task manager завжди підтверджуй id ресурсу перед переміщенням.
+      Operating rules:
+      - Before any write operation, confirm details with the user.
+      - Read current state (balance, list, board) first, then propose actions.
+      - Reply in structured Markdown. If something is unclear, ask.
+      - For lesson credits, always show the current balance after an operation.
+      - For the task manager, always confirm resource IDs before moves.
     tools:
       - type: McpServer
         mcpServer:

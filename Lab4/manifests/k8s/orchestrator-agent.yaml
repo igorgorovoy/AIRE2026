@@ -22,21 +22,25 @@ spec:
           image: a2a-orchestrator-agent:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9001
+            - containerPort: 14001
               protocol: TCP
           env:
-            - name: A2A_AGENT_URLS
-              value: "http://a2a-assistant-agent.a2a.svc.cluster.local:9000"
+            - name: A2A_ORCHESTRATOR_PORT
+              value: "14001"
+            - name: A2A_PUBLIC_BASE_URL
+              value: "http://a2a-orchestrator-agent.a2a.svc.cluster.local:14001"
+            - name: A2A_ASSISTANT_URL
+              value: "http://a2a-assistant-agent.a2a.svc.cluster.local:14000"
           readinessProbe:
             httpGet:
               path: /.well-known/agent-card.json
-              port: 9001
+              port: 14001
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /.well-known/agent-card.json
-              port: 9001
+              port: 14001
             initialDelaySeconds: 10
             periodSeconds: 30
 ---
@@ -51,7 +55,7 @@ spec:
   selector:
     app: a2a-orchestrator-agent
   ports:
-    - port: 9001
-      targetPort: 9001
+    - port: 14001
+      targetPort: 14001
       protocol: TCP
   type: ClusterIP

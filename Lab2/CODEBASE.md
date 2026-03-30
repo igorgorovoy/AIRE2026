@@ -70,7 +70,7 @@ releases/
   kagent.yaml        kagent HelmRelease + HTTPRoute + ReferenceGrant
   kustomization.yaml
 manifests/
-  kagent/add-two-mcp/  Приклад MCPServer + Agent (лабораторна); README — деплой
+  kagent/add-two-mcp/  MCPServer + Agent example (lab); README covers deploy
 scripts/
   setup.sh           Called by make run
 .github/

@@ -1,30 +1,29 @@
-# Збірка: контекст — КОРІНЬ agentic-ai-landing-zone (не цей каталог!)
+# Build context: agentic-ai-landing-zone repo ROOT (not this directory!)
 #
 #   cd /path/to/agentic-ai-landing-zone
 #   docker build -t mcp-lesson-credits:latest \
 #     -f /path/to/Lab3/mcp-servers/src/lesson-credits/Dockerfile .
 #
-# server.py лежить у mcp-servers-lesson-credits/server.py відносно кореня проєкту.
-# _PROJECT_ROOT = Path(__file__).parents[1] → /app — і саме звідти підтягуються
-# agents/ та core/ (локальні пакети проєкту).
+# server.py lives at mcp-servers-lesson-credits/server.py relative to project root.
+# _PROJECT_ROOT = Path(__file__).parents[1] → /app — agents/ and core/ load from there.
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Встановити залежності проєкту (langgraph, langchain-core, etc.) + MCP сервер
+# Project deps (langgraph, langchain-core, etc.) + MCP server
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir "mcp[cli]>=1.0" "python-dotenv>=1.0"
 
-# Скопіювати локальні пакети-залежності сервера
+# Local packages the server imports
 COPY agents/ ./agents/
 COPY core/ ./core/
 
-# Скопіювати сам сервер (зберігаємо відносний шлях: parents[1] == /app)
+# Server module (keep relative path: parents[1] == /app)
 COPY mcp-servers-lesson-credits/server.py ./mcp-servers-lesson-credits/server.py
 
-# Storage backend: local (файлова система всередині контейнера)
-# Для production змініть на lakefs і вкажіть LAKEFS_* через Secret
+# Storage: local (filesystem inside container)
+# For production switch to lakefs and set LAKEFS_* via Secret
 ENV STORAGE_BACKEND=local
 
 CMD ["python", "mcp-servers-lesson-credits/server.py"]

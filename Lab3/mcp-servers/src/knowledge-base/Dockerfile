@@ -1,4 +1,4 @@
-# Збірка: з каталогу mcp-servers/src/knowledge-base (автономний сервер, без зовнішніх залежностей проєкту)
+# Build from mcp-servers/src/knowledge-base (standalone server, no external project deps)
 #   docker build -t mcp-knowledge-base:latest .
 FROM python:3.12-slim
 

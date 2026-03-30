@@ -1,6 +1,6 @@
 .env
 .env.*
 
-# Kubernetes secrets з реальними credentials
+# Kubernetes secrets with real credentials
 **/secrets.yaml
 

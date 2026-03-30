@@ -11,8 +11,8 @@ Usage:
     python src/assistant-agent/__main__.py
 
 Environment:
-    A2A_ASSISTANT_PORT — порт uvicorn (за замовч. 14000)
-    A2A_PUBLIC_BASE_URL — URL у Agent Card для клієнтів (у K8s / compose)
+    A2A_ASSISTANT_PORT — uvicorn port (default 14000)
+    A2A_PUBLIC_BASE_URL — URL in Agent Card for clients (K8s / compose)
 """
 
 import os
@@ -36,11 +36,12 @@ PORT = int(os.getenv("A2A_ASSISTANT_PORT", "14000"))
 
 
 def _agent_card_url() -> str:
-    """Базовий URL у Agent Card (для клієнтів і A2A). У K8s задайте A2A_PUBLIC_BASE_URL."""
+    """Base URL in Agent Card (for clients and A2A). Set A2A_PUBLIC_BASE_URL in K8s."""
     base = os.getenv("A2A_PUBLIC_BASE_URL", "").strip().rstrip("/")
     if base:
         return f"{base}/"
     return f"http://localhost:{PORT}/"
+
 
 # ---------------------------------------------------------------------------
 # Agent Skills
@@ -55,9 +56,9 @@ skill_knowledge_base = AgentSkill(
     ),
     tags=["knowledge-base", "obsidian", "documents", "search"],
     examples=[
-        "Покажи список документів",
-        "Отримай документ '46 AWS/AWS Skill Builder.md'",
-        "Покажи граф knowledge base",
+        "Show the list of documents",
+        "Get document '46 AWS/AWS Skill Builder.md'",
+        "Show the knowledge base graph",
     ],
 )
 
@@ -70,9 +71,9 @@ skill_lesson_credits = AgentSkill(
     ),
     tags=["lessons", "credits", "balance", "calendar"],
     examples=[
-        "Скільки уроків залишилось?",
-        "Поповни 5 уроків",
-        "Покажи історію транзакцій",
+        "How many lessons are left?",
+        "Top up 5 lessons",
+        "Show transaction history",
     ],
 )
 
@@ -85,9 +86,9 @@ skill_task_manager = AgentSkill(
     ),
     tags=["tasks", "boards", "kanban", "project-management"],
     examples=[
-        "Покажи всі workspace",
-        "Створи нову картку в списку 'To Do'",
-        "Покажи деталі картки",
+        "List all workspaces",
+        "Create a new card in list 'To Do'",
+        "Show card details",
     ],
 )
 
@@ -100,8 +101,8 @@ _AGENT_ENDPOINT = _agent_card_url()
 public_agent_card = AgentCard(
     name="Personal Assistant Agent",
     description=(
-        "Персональний AI-асистент з доступом до Knowledge Base (Obsidian vault), "
-        "Lesson Credits та Task Manager. Supports Ukrainian and English."
+        "Personal AI assistant with access to Knowledge Base (Obsidian vault), "
+        "Lesson Credits, and Task Manager."
     ),
     url=_AGENT_ENDPOINT,
     preferred_transport="JSONRPC",

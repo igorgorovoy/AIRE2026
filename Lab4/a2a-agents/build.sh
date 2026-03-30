@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Збірка Docker-образів для A2A-агентів Lab4.
+# Build Docker images for Lab4 A2A agents.
 #
-# Використання:
-#   ./a2a-agents/build.sh                # збірка обох образів
-#   ./a2a-agents/build.sh --load         # + завантажити у Rancher Desktop VM
-#   ./a2a-agents/build.sh --no-cache     # без кешу
+# Usage:
+#   ./a2a-agents/build.sh                # build both images
+#   ./a2a-agents/build.sh --load         # also load into Rancher Desktop VM
+#   ./a2a-agents/build.sh --no-cache     # no build cache
 #
-# Змінні середовища:
-#   REGISTRY     Префікс реєстру (напр. ghcr.io/username); порожньо — локально
-#   TAG          Тег образу (default: latest)
+# Environment:
+#   REGISTRY     Registry prefix (e.g. ghcr.io/username); empty = local only
+#   TAG          Image tag (default: latest)
 set -euo pipefail
 
-# ── Кольори ──────────────────────────────────────────────────────────────────
+# ── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
@@ -20,10 +20,10 @@ success() { echo -e "${GREEN}✔ $*${RESET}"; }
 warn()    { echo -e "${YELLOW}⚠ $*${RESET}"; }
 error()   { echo -e "${RED}✘ $*${RESET}" >&2; exit 1; }
 
-# ── Шляхи ────────────────────────────────────────────────────────────────────
+# ── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Аргументи ────────────────────────────────────────────────────────────────
+# ── Arguments ────────────────────────────────────────────────────────────────
 OPT_LOAD=false
 OPT_NO_CACHE=false
 OPT_PUSH=false
@@ -33,11 +33,11 @@ for arg in "$@"; do
     --load)     OPT_LOAD=true ;;
     --no-cache) OPT_NO_CACHE=true ;;
     --push)     OPT_PUSH=true ;;
-    --*)        warn "Невідома опція: $arg" ;;
+    --*)        warn "Unknown option: $arg" ;;
   esac
 done
 
-# ── Тег та реєстр ────────────────────────────────────────────────────────────
+# ── Tag and registry ─────────────────────────────────────────────────────────
 TAG="${TAG:-latest}"
 REGISTRY="${REGISTRY:-}"
 [[ -n "$REGISTRY" ]] && REGISTRY="${REGISTRY%/}/"
@@ -48,7 +48,7 @@ ORCHESTRATOR_IMAGE="${REGISTRY}a2a-orchestrator-agent:${TAG}"
 CACHE_FLAG=""
 $OPT_NO_CACHE && CACHE_FLAG="--no-cache"
 
-# ── Функція збірки ───────────────────────────────────────────────────────────
+# ── Build helper ───────────────────────────────────────────────────────────────
 build_image() {
   local name="$1" image="$2" dockerfile="$3"
   echo ""
@@ -57,28 +57,28 @@ build_image() {
 
   if docker build $CACHE_FLAG -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR"; then
     local elapsed=$(( $(date +%s) - start ))
-    success "$name зібрано за ${elapsed}s"
+    success "$name built in ${elapsed}s"
   else
-    error "Збірка $name провалилась"
+    error "Build failed: $name"
   fi
 }
 
 load_to_rancher() {
   local image="$1"
-  info "Передаю $image у Rancher Desktop VM docker..."
-  # Pipe напряму: docker save → rdctl shell → sudo docker load (без тимчасового файлу)
+  info "Loading $image into Rancher Desktop VM docker..."
+  # Pipe: docker save → rdctl shell → sudo docker load (no temp file)
   docker save "$image" | rdctl shell -- sudo docker load \
-    && success "Завантажено: $image" \
-    || warn "rdctl load не вдався для $image (перевірте вручну)"
+    && success "Loaded: $image" \
+    || warn "rdctl load failed for $image (check manually)"
 }
 
 push_image() {
   local image="$1"
-  info "Пушу $image..."
-  docker push "$image" && success "Запушено: $image" || warn "Push не вдався: $image"
+  info "Pushing $image..."
+  docker push "$image" && success "Pushed: $image" || warn "Push failed: $image"
 }
 
-# ── Заголовок ────────────────────────────────────────────────────────────────
+# ── Header ─────────────────────────────────────────────────────────────────────
 echo -e "${BOLD}"
 echo "╔══════════════════════════════════════════╗"
 echo "║   Lab4 — A2A Agents Image Build          ║"
@@ -91,36 +91,36 @@ $OPT_NO_CACHE && echo "  MODE : --no-cache"
 $OPT_LOAD && echo "  LOAD : Rancher Desktop"
 echo ""
 
-# ── Збірка образів ───────────────────────────────────────────────────────────
+# ── Build images ─────────────────────────────────────────────────────────────
 build_image "assistant-agent"    "$ASSISTANT_IMAGE"    "Dockerfile.assistant"
 build_image "orchestrator-agent" "$ORCHESTRATOR_IMAGE" "Dockerfile.orchestrator"
 
-# ── Підсумок ─────────────────────────────────────────────────────────────────
+# ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}━━━ Зібрані образи ━━━${RESET}"
+echo -e "${BOLD}━━━ Built images ━━━${RESET}"
 for img in "$ASSISTANT_IMAGE" "$ORCHESTRATOR_IMAGE"; do
   echo -e "  ${GREEN}✔${RESET} $img"
 done
 
-# ── Rancher Desktop load ─────────────────────────────────────────────────────
+# ── Rancher Desktop load ───────────────────────────────────────────────────────
 if $OPT_LOAD; then
   echo ""
-  echo -e "${BOLD}━━━ Завантаження в Rancher Desktop ━━━${RESET}"
-  command -v rdctl &>/dev/null || error "rdctl не знайдено. Встановіть Rancher Desktop."
+  echo -e "${BOLD}━━━ Loading into Rancher Desktop ━━━${RESET}"
+  command -v rdctl &>/dev/null || error "rdctl not found. Install Rancher Desktop."
   for img in "$ASSISTANT_IMAGE" "$ORCHESTRATOR_IMAGE"; do
     load_to_rancher "$img"
   done
 fi
 
-# ── Push ─────────────────────────────────────────────────────────────────────
+# ── Push ───────────────────────────────────────────────────────────────────────
 if $OPT_PUSH; then
   echo ""
-  echo -e "${BOLD}━━━ Push до реєстру ━━━${RESET}"
-  [[ -z "$REGISTRY" ]] && error "REGISTRY не задано. Приклад: REGISTRY=ghcr.io/username ./build.sh --push"
+  echo -e "${BOLD}━━━ Push to registry ━━━${RESET}"
+  [[ -z "$REGISTRY" ]] && error "REGISTRY not set. Example: REGISTRY=ghcr.io/username ./build.sh --push"
   for img in "$ASSISTANT_IMAGE" "$ORCHESTRATOR_IMAGE"; do
     push_image "$img"
   done
 fi
 
 echo ""
-success "Готово!"
+success "Done!"

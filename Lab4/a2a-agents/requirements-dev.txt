@@ -1,0 +1,3 @@
+# Local tests: pytest Lab4/a2a-agents/tests/
+-r requirements.txt
+pytest>=8.0.0

@@ -5,7 +5,6 @@ and exposes them via A2A protocol. The agent receives user messages,
 routes them to the appropriate MCP tool, and returns results as A2A artifacts.
 """
 
-import json
 import os
 from urllib.parse import quote
 
@@ -47,7 +46,7 @@ async def kb_list_documents() -> str:
         resp.raise_for_status()
         mtimes = resp.json().get("mtimes", {})
         lines = [f"- {p} | {v}" for p, v in sorted(mtimes.items(), key=lambda x: -x[1])[:50]]
-        return "\n".join(lines) if lines else "Немає документів"
+        return "\n".join(lines) if lines else "No documents"
 
 
 async def kb_get_document(path: str) -> str:
@@ -58,7 +57,7 @@ async def kb_get_document(path: str) -> str:
         resp = await client.get(url, headers=_kb_headers())
         resp.raise_for_status()
         content = resp.json().get("content", "")
-        return content or "(порожній документ)"
+        return content or "(empty document)"
 
 
 async def kb_graph_get(limit: int = 500) -> str:
@@ -89,34 +88,46 @@ async def route_message(text: str) -> str:
     lower = text.lower()
 
     # Knowledge Base routing
-    if any(kw in lower for kw in ["документ", "document", "список", "list", "knowledge", "vault", "obsidian"]):
-        if any(kw in lower for kw in ["граф", "graph", "nodes", "edges"]):
+    if any(
+        kw in lower
+        for kw in [
+            "document",
+            "list",
+            "knowledge",
+            "vault",
+            "obsidian",
+        ]
+    ):
+        if any(kw in lower for kw in ["graph", "nodes", "edges"]):
             return await kb_graph_get()
         return await kb_list_documents()
 
-    if any(kw in lower for kw in ["отримай", "get", "покажи документ", "зміст"]):
-        # Try to extract a document path from the message
-        for prefix in ["отримай документ ", "get document ", "покажи документ "]:
+    if any(kw in lower for kw in ["get", "show document", "content"]):
+        for prefix in [
+            "get document ",
+            "show document ",
+        ]:
             if prefix in lower:
-                path = text[lower.index(prefix) + len(prefix):].strip().strip("'\"")
+                path = text[lower.index(prefix) + len(prefix) :].strip().strip("'\"")
                 if path:
                     return await kb_get_document(path)
         return await kb_list_documents()
 
     # Default: describe capabilities
     return (
-        "Я персональний AI-асистент з доступом до:\n"
-        "1. **Knowledge Base** — документи Obsidian vault\n"
-        "   - Попросіть 'список документів' або 'граф knowledge base'\n"
-        "2. **Lesson Credits** — облік уроків (потребує MCP backend)\n"
-        "3. **Task Manager** — управління задачами (потребує MCP backend)\n\n"
-        "Що вас цікавить?"
+        "I am a personal AI assistant with access to:\n"
+        "1. **Knowledge Base** — Obsidian vault documents\n"
+        "   - Try 'list documents' or 'knowledge base graph'\n"
+        "2. **Lesson Credits** — lesson accounting (requires MCP backend)\n"
+        "3. **Task Manager** — task management (requires MCP backend)\n\n"
+        "What would you like to do?"
     )
 
 
 # ---------------------------------------------------------------------------
 # A2A AgentExecutor
 # ---------------------------------------------------------------------------
+
 
 class AssistantAgentExecutor(AgentExecutor):
     """A2A executor that routes user messages to MCP tools."""
@@ -135,8 +146,8 @@ class AssistantAgentExecutor(AgentExecutor):
                 task_id=context.task_id,
                 context_id=context.context_id,
                 status=TaskStatus(
-                    state=TaskState.TASK_STATE_WORKING,
-                    message=new_agent_text_message("Обробляю запит..."),
+                    state=TaskState.working,
+                    message=new_agent_text_message("Processing request..."),
                 ),
             )
         )
@@ -155,7 +166,7 @@ class AssistantAgentExecutor(AgentExecutor):
         try:
             result = await route_message(user_text)
         except Exception as e:
-            result = f"Помилка: {e}"
+            result = f"Error: {e}"
 
         # Send artifact
         await event_queue.enqueue_event(
@@ -171,7 +182,7 @@ class AssistantAgentExecutor(AgentExecutor):
             TaskStatusUpdateEvent(
                 task_id=context.task_id,
                 context_id=context.context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
+                status=TaskStatus(state=TaskState.completed),
             )
         )
 

@@ -1,13 +1,15 @@
-"""A2A Orchestrator Agent — єдина точка входу для клієнта.
+"""A2A Orchestrator Agent — single entry point for the client.
 
-Оркестратор не викликає MCP напряму: він передає запити Personal Assistant Agent
-(Lab3 / A2A на порту 14000), а той уже маршрутизує до інструментів і зовнішніх систем
+The orchestrator does not call MCP directly: it forwards requests to the Personal Assistant Agent
+(Lab3 / A2A on port 14000), which routes to tools and external systems
 (Knowledge Base, Lesson Credits, Task Manager).
 
-Демонструє ланцюг: клієнт → A2A оркестратор → A2A асистент → tools / HTTP API.
+Demonstrates: client → A2A orchestrator → A2A assistant → tools / HTTP API.
 """
 
 import json
+import sys
+from pathlib import Path
 
 import httpx
 
@@ -23,6 +25,16 @@ from a2a.utils.artifact import new_text_artifact
 from a2a.utils.message import new_agent_text_message
 from a2a.utils.task import new_task
 
+# Local: a2a_http_client at a2a-agents root; Docker: copied next to agent_executor in /app
+_orchestrator_dir = Path(__file__).resolve().parent
+for _p in (_orchestrator_dir, _orchestrator_dir.parent.parent):
+    if (_p / "a2a_http_client.py").is_file():
+        if str(_p) not in sys.path:
+            sys.path.insert(0, str(_p))
+        break
+
+from a2a_http_client import build_message_send_payload, extract_task_or_message_text
+
 
 # ---------------------------------------------------------------------------
 # A2A Client: discover assistant and send tasks
@@ -33,7 +45,7 @@ async def discover_agent(base_url: str) -> dict | None:
     """Fetch Agent Card from a remote A2A agent via Well-Known URI."""
     url = f"{base_url.rstrip('/')}/.well-known/agent-card.json"
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             return resp.json()
@@ -43,67 +55,44 @@ async def discover_agent(base_url: str) -> dict | None:
 
 
 async def send_task_to_agent(base_url: str, user_text: str) -> str:
-    """Send a message to a remote A2A agent using JSON-RPC SendMessage."""
-    payload = {
-        "jsonrpc": "2.0",
-        "id": "1",
-        "method": "a2a.SendMessage",
-        "params": {
-            "message": {
-                "role": "user",
-                "parts": [{"type": "text", "text": user_text}],
-            },
-            "configuration": {
-                "returnImmediately": False,
-            },
-        },
-    }
+    """Send a message to a remote A2A agent (JSON-RPC ``message/send``)."""
+    payload = build_message_send_payload(user_text)
 
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=120, trust_env=False) as client:
             resp = await client.post(
                 base_url.rstrip("/") + "/",
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
             )
             resp.raise_for_status()
             data = resp.json()
 
-            # Extract result from JSON-RPC response
-            result = data.get("result", {})
+            if data.get("error"):
+                return json.dumps(data["error"], indent=2, ensure_ascii=False)
 
-            # Try to get artifact text
-            artifacts = result.get("artifacts", [])
-            if artifacts:
-                texts = []
-                for artifact in artifacts:
-                    for part in artifact.get("parts", []):
-                        if part.get("type") == "text":
-                            texts.append(part["text"])
-                if texts:
-                    return "\n".join(texts)
-
-            # Fallback: look for status message
-            status = result.get("status", {})
-            msg = status.get("message", {})
-            if msg:
-                parts = msg.get("parts", [])
-                for part in parts:
-                    if part.get("type") == "text":
-                        return part["text"]
-
-            return json.dumps(result, indent=2, ensure_ascii=False)
+            result = data.get("result")
+            text = extract_task_or_message_text(result)
+            if text:
+                return text
+            if result is not None:
+                return json.dumps(result, indent=2, ensure_ascii=False)
+            return json.dumps(data, indent=2, ensure_ascii=False)
 
     except Exception as e:
-        return f"Помилка зв'язку з агентом: {e}"
+        return f"Error contacting agent: {e}"
 
 
 # ---------------------------------------------------------------------------
 # A2A AgentExecutor
 # ---------------------------------------------------------------------------
 
+
 class OrchestratorAgentExecutor(AgentExecutor):
-    """Оркестратор: усі користувацькі завдання передає одному A2A Assistant Agent."""
+    """Orchestrator: forwards all user tasks to one A2A Assistant Agent."""
 
     def __init__(self, assistant_url: str = "http://localhost:14000"):
         self.assistant_url = assistant_url.rstrip("/")
@@ -122,9 +111,9 @@ class OrchestratorAgentExecutor(AgentExecutor):
                 task_id=context.task_id,
                 context_id=context.context_id,
                 status=TaskStatus(
-                    state=TaskState.TASK_STATE_WORKING,
+                    state=TaskState.working,
                     message=new_agent_text_message(
-                        "Передаю запит асистенту (інструменти та зовнішні системи)..."
+                        "Forwarding request to assistant (tools and external systems)..."
                     ),
                 ),
             )
@@ -160,16 +149,16 @@ class OrchestratorAgentExecutor(AgentExecutor):
             TaskStatusUpdateEvent(
                 task_id=context.task_id,
                 context_id=context.context_id,
-                status=TaskStatus(state=TaskState.TASK_STATE_COMPLETED),
+                status=TaskStatus(state=TaskState.completed),
             )
         )
 
     async def _discover_all(self) -> str:
-        """Показує Agent Card асистента — єдиного downstream A2A-агента з інструментами."""
+        """Show Assistant Agent Card — single downstream A2A agent with tools."""
         lines = [
-            "# Оркестратор → Assistant Agent\n",
-            "Оркестратор приймає запити клієнта і через A2A делегує їх **Personal Assistant Agent**, "
-            "який викликає інструменти (KB, уроки, задачі).\n",
+            "# Orchestrator → Assistant Agent\n",
+            "The orchestrator accepts client requests and via A2A delegates them to the **Personal Assistant Agent**, "
+            "which invokes tools (KB, lessons, tasks).\n",
         ]
         url = self.assistant_url
         card = await discover_agent(url)
@@ -180,7 +169,7 @@ class OrchestratorAgentExecutor(AgentExecutor):
             lines.append(f"- **Version**: {card.get('version', 'N/A')}")
             skills = card.get("skills", [])
             if skills:
-                lines.append("- **Skills** (тут — доступ до зовнішніх систем):")
+                lines.append("- **Skills** (access to external systems):")
                 for s in skills:
                     lines.append(f"  - `{s.get('id')}`: {s.get('description', '')}")
             lines.append("")
@@ -190,19 +179,19 @@ class OrchestratorAgentExecutor(AgentExecutor):
         return "\n".join(lines)
 
     async def _delegate_task(self, user_text: str) -> str:
-        """Завжди делегує запит одному Personal Assistant Agent."""
+        """Always delegate to the Personal Assistant Agent."""
         url = self.assistant_url
         card = await discover_agent(url)
         if not card:
             return (
-                f"Асистент недоступний за `{url}`. "
-                "Перевірте сервіс assistant-agent і змінну A2A_ASSISTANT_URL."
+                f"Assistant unreachable at `{url}`. "
+                "Check the assistant-agent service and A2A_ASSISTANT_URL."
             )
         agent_name = card.get("name", url)
         result = await send_task_to_agent(url, user_text)
         return (
-            f"**Оркестратор звернувся до**: {agent_name}\n"
-            f"**Відповідь** (асистент обробив запит через інструменти / API):\n\n{result}"
+            f"**Orchestrator called**: {agent_name}\n"
+            f"**Reply** (assistant handled the request via tools / API):\n\n{result}"
         )
 
     async def cancel(

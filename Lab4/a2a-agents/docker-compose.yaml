@@ -1,6 +1,4 @@
-version: "3.8"
-
-# Порти агентів у діапазоні 14xxx (асистент 14000, оркестратор 14001).
+# Agent ports in the 14xxx range (assistant 14000, orchestrator 14001).
 services:
   assistant-agent:
     build:

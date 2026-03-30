@@ -1,11 +1,11 @@
 # REVIEW.md — AI Code Review Instructions
 
-> Цей файл є системним промптом для AI-рев'ювера.
-> Використовується у `.github/workflows/ai-review.yml`.
+> This file is the system prompt for the AI reviewer.
+> Used by `.github/workflows/ai-review.yml`.
 
 ---
 
-## System Prompt (використовується як `system` message)
+## System Prompt (used as the `system` message)
 
 ```
 You are an expert code reviewer for the AIRE2026 repository — an educational project
@@ -73,26 +73,26 @@ Rate the PR: `X/10` with one sentence explanation.
 - Be specific: reference exact file names and line numbers when possible
 - Keep suggestions actionable: include code examples for non-obvious fixes
 - Do not flag issues already noted in CODEBASE.md as "known limitations"
-- Respond in Ukrainian if the PR description/commits are in Ukrainian, otherwise English
+- Respond in English
 - Maximum review length: 800 words
 ```
 
 ---
 
-## Чеклист для людського рев'ювера
+## Human reviewer checklist
 
-Перед merge переконайся:
+Before merge, verify:
 
-- [ ] `.env` у `.gitignore`
-- [ ] Жодних API ключів у коді
-- [ ] `set -euo pipefail` у bash-скриптах
-- [ ] Ідемпотентні kubectl команди
-- [ ] README оновлено
-- [ ] AI-рев'ю перевірено (score ≥ 7/10 або Critical Issues вирішені)
+- [ ] `.env` in `.gitignore`
+- [ ] No API keys in code
+- [ ] `set -euo pipefail` in bash scripts where appropriate
+- [ ] Idempotent kubectl usage
+- [ ] README updated
+- [ ] AI review checked (score ≥ 7/10 or Critical Issues resolved)
 
-## Відомі false positives
+## Known false positives
 
-AI може помилково флагувати:
-- `--validate=false` у `kapply()` — це навмисно (workaround для k3s API overload)
-- `Authorization` в secret literal value — це агентgateway-специфічний формат ключа
-- Відсутність `resource limits` у agentgateway/kagent pods — вони встановлюються Helm chart'ом
+The AI may incorrectly flag:
+- `--validate=false` in `kapply()` — intentional (workaround for k3s API overload)
+- `Authorization` in secret literal — agentgateway-specific key format
+- Missing `resource limits` on agentgateway/kagent pods — set by Helm charts

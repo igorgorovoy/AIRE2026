@@ -1,39 +1,39 @@
 # Lab 4 — A2A Protocol: Agent-to-Agent Communication
 
-> **Мета:** ознайомитися з протоколом A2A (Agent-to-Agent), реалізувати агента з Agent Card та Well-Known URI, налаштувати міжагентну комунікацію, розгорнути Inventory AI-ресурсів у кластері.
+> **Goal:** learn the A2A (Agent-to-Agent) protocol, implement an agent with an Agent Card and Well-Known URI, configure inter-agent communication, and deploy an AI resource inventory in the cluster.
 
-## A2A Protocol — огляд
+## A2A Protocol — overview
 
-**A2A (Agent2Agent)** — відкритий протокол для стандартизованої комунікації між AI-агентами. Розроблений Google, переданий Linux Foundation. Підтримується 150+ організаціями.
+**A2A (Agent2Agent)** is an open protocol for standardized communication between AI agents. Developed by Google and contributed to the Linux Foundation. Supported by 150+ organizations.
 
-### Ключові відмінності від MCP
+### Key differences from MCP
 
-| Аспект | MCP | A2A |
+| Aspect | MCP | A2A |
 |--------|-----|-----|
-| **Фокус** | Агент ↔ Інструменти/Дані | Агент ↔ Агент |
-| **Модель** | Агент викликає tools | Агенти спілкуються як рівноправні |
-| **Discovery** | Конфігурація клієнта | Well-Known URI (`/.well-known/agent-card.json`) |
-| **Протокол** | JSON-RPC (stdio/SSE) | JSON-RPC (HTTP/gRPC) |
-| **Стан** | Stateless tool calls | Stateful Tasks (lifecycle) |
+| **Focus** | Agent ↔ Tools/Data | Agent ↔ Agent |
+| **Model** | Agent calls tools | Agents communicate as peers |
+| **Discovery** | Client configuration | Well-Known URI (`/.well-known/agent-card.json`) |
+| **Protocol** | JSON-RPC (stdio/SSE) | JSON-RPC (HTTP/gRPC) |
+| **State** | Stateless tool calls | Stateful Tasks (lifecycle) |
 
-### Основні концепції A2A
+### Core A2A concepts
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    A2A Protocol Flow                         │
 │                                                              │
 │  1. Discovery:  GET /.well-known/agent-card.json            │
-│  2. Send Task:  POST / (JSON-RPC: a2a.SendMessage)          │
-│  3. Get Task:   POST / (JSON-RPC: a2a.GetTask)              │
-│  4. Cancel:     POST / (JSON-RPC: a2a.CancelTask)           │
+│  2. Send Task:  POST / (JSON-RPC: message/send)             │
+│  3. Get Task:   POST / (JSON-RPC: tasks/get)                │
+│  4. Cancel:     POST / (JSON-RPC: tasks/cancel)             │
 └─────────────────────────────────────────────────────────────┘
 
-Agent Card — JSON-документ з метаданими агента:
+Agent Card — JSON metadata for an agent:
   - name, description, version
-  - skills[] — можливості агента
+  - skills[] — agent capabilities
   - capabilities — streaming, push notifications
-  - supported_interfaces — endpoint URLs
-  - securitySchemes — автентифікація
+  - `url` + `preferredTransport` — primary endpoint; `additionalInterfaces[]` — `transport` + `url`
+  - securitySchemes — authentication
 
 Task States:
   CREATED → WORKING → COMPLETED
@@ -44,7 +44,7 @@ Task States:
            → REJECTED
 ```
 
-## Архітектура Lab4
+## Lab 4 architecture
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -52,18 +52,18 @@ Task States:
 └──────────────────────┬────────────────────────────────────┘
                        │ A2A JSON-RPC
           ┌────────────▼────────────┐
-          │   Orchestrator Agent    │  (port 9001)
+          │   Orchestrator Agent    │  (port 14001)
           │   /.well-known/         │
           │    agent-card.json      │
           │                         │
           │   Skills:               │
           │   - orchestration       │
-          │   (discover & delegate) │
+          │   (→ assistant A2A)     │
           └────────────┬────────────┘
                        │ 1. GET /.well-known/agent-card.json
-                       │ 2. POST a2a.SendMessage
+                       │ 2. POST message/send
           ┌────────────▼────────────┐
-          │   Assistant Agent       │  (port 9000)
+          │   Assistant Agent       │  (port 14000)
           │   /.well-known/         │
           │    agent-card.json      │
           │                         │
@@ -79,131 +79,138 @@ Task States:
          └──────┘└─────┘└───────┘
 ```
 
-## Структура Lab4
+## Lab 4 layout
 
 ```
 Lab4/
-├── LAB4.md                              ← цей файл
+├── LAB4.md                              ← this file
 ├── a2a-agents/
 │   ├── requirements.txt                 ← a2a-sdk[http-server], uvicorn, httpx
-│   ├── docker-compose.yaml              ← локальний запуск обох агентів
-│   ├── Dockerfile.assistant             ← Docker-образ assistant agent
-│   ├── Dockerfile.orchestrator          ← Docker-образ orchestrator agent
-│   ├── test_a2a.py                      ← тестовий клієнт
+│   ├── docker-compose.yaml              ← run both agents locally
+│   ├── Dockerfile.assistant             ← assistant agent image
+│   ├── Dockerfile.orchestrator          ← orchestrator agent image
+│   ├── test_a2a.py                      ← test client (same logic as curl)
+│   ├── a2a_http_client.py               ← JSON-RPC message/send + response parsing
+│   ├── requirements-dev.txt             ← pytest (unit tests)
+│   ├── tests/
+│   │   └── test_a2a_http_client.py      ← unit tests for request/response shape
 │   └── src/
 │       ├── assistant-agent/
 │       │   ├── __main__.py              ← Agent Card + A2A server setup
-│       │   └── agent_executor.py        ← AgentExecutor з MCP tool routing
+│       │   └── agent_executor.py        ← AgentExecutor with MCP tool routing
 │       └── orchestrator-agent/
 │           ├── __main__.py              ← Agent Card + A2A server setup
 │           └── agent_executor.py        ← Discovery + delegation via A2A
 ├── manifests/
 │   ├── k8s/
 │   │   ├── namespace.yaml               ← namespace: a2a
-│   │   ├── secrets-example.yaml         ← шаблон секретів
+│   │   ├── secrets-example.yaml         ← secrets template
 │   │   ├── assistant-agent.yaml         ← Deployment + Service
 │   │   ├── orchestrator-agent.yaml      ← Deployment + Service
 │   │   └── kustomization.yaml           ← Kustomize manifest
 │   └── inventory/
-│       └── abox-inventory.yaml          ← ConfigMap з переліком AI-ресурсів
-└── docs/                                ← скріншоти та додаткова документація
+│       └── abox-inventory.yaml          ← ConfigMap listing AI resources
+└── docs/                                ← screenshots and extra documentation
 ```
 
-## Компоненти
+## Components
 
 ### 1. Assistant Agent (A2A Server)
 
-**Файл:** `a2a-agents/src/assistant-agent/__main__.py`
+**File:** `a2a-agents/src/assistant-agent/__main__.py`
 
-Обгортка Lab3 MCP tools у A2A протокол:
+Wraps Lab3 MCP tools in the A2A protocol:
 
-- **Agent Card** з трьома skills (knowledge_base, lesson_credits, task_manager)
-- **Well-Known URI**: `GET http://localhost:9000/.well-known/agent-card.json`
-- **A2A endpoint**: `POST http://localhost:9000/` (JSON-RPC)
-- Використовує `a2a-sdk`: `A2AStarletteApplication`, `DefaultRequestHandler`, `InMemoryTaskStore`
+- **Agent Card** with three skills (knowledge_base, lesson_credits, task_manager)
+- **Well-Known URI**: `GET http://127.0.0.1:14000/.well-known/agent-card.json` (assistant port in the 14xxx range)
+- **A2A endpoint**: `POST http://127.0.0.1:14000/` (or env `A2A_ASSISTANT_PORT` / `A2A_TEST_*_URL`)
+- Uses `a2a-sdk`: `A2AStarletteApplication`, `DefaultRequestHandler`, `InMemoryTaskStore`
 
 **AgentExecutor** (`agent_executor.py`):
-- Отримує `a2a.SendMessage` → витягує текст з `message.parts`
-- Маршрутизує за ключовими словами до KB/Lessons/Tasks tools
-- Повертає результат як `TaskArtifactUpdateEvent` (TextPart)
+- Handles incoming A2A messages → extracts text from `message.parts` (SDK model)
+- Keyword routing to KB / Lessons / Tasks tools
+- Returns results as `TaskArtifactUpdateEvent` (TextPart)
 
 ### 2. Orchestrator Agent (A2A Client + Server)
 
-**Файл:** `a2a-agents/src/orchestrator-agent/__main__.py`
+**File:** `a2a-agents/src/orchestrator-agent/__main__.py`
 
-Агент-оркестратор для міжагентної комунікації:
+Orchestrator — single client entry point over A2A:
 
-- **Discovery**: `GET /.well-known/agent-card.json` на кожному зареєстрованому агенті
-- **Delegation**: надсилає `a2a.SendMessage` JSON-RPC до найкращого агента за skill matching
-- **Команди**: `discover` — показати всіх агентів, інакше — делегувати задачу
+- **Delegation**: all requests go **only** to the Personal Assistant Agent (`A2A_ASSISTANT_URL`); the orchestrator does not call MCP
+- **Assistant** performs work with tools and external systems (as in Lab3)
+- **Discovery**: the `discover` command shows the assistant’s Agent Card (downstream)
 
-### 3. Kubernetes Manifests
+### 3. Kubernetes manifests
 
-- **Namespace** `a2a` для ізоляції від kagent namespace
-- **Deployments** з health checks через `/.well-known/agent-card.json`
-- **Services** (ClusterIP) для внутрішньокластерної комунікації
-- Orchestrator знаходить assistant через DNS: `a2a-assistant-agent.a2a.svc.cluster.local:9000`
+- **Namespace** `a2a` for isolation from the kagent namespace
+- **Deployments** with health checks via `/.well-known/agent-card.json`
+- **Services** (ClusterIP) for in-cluster communication
+- Orchestrator reaches the assistant via `A2A_ASSISTANT_URL`; in-cluster: `http://a2a-assistant-agent.a2a.svc.cluster.local:14000`
 
 ### 4. Inventory
 
-ConfigMap `ai-inventory-config` у namespace kagent — перелік всіх AI-ресурсів у кластері:
-- Агенти (kagent Lab3 + A2A Lab4)
-- MCP сервери
-- Інфраструктурні компоненти
+ConfigMap `ai-inventory-config` in namespace `kagent` — list of AI resources in the cluster:
+- Agents (kagent Lab3 + A2A Lab4)
+- MCP servers
+- Infrastructure components
 
-## Швидкий старт
+## Quick start
 
-### Передумови
+### Prerequisites
 
 - Python 3.12+
-- Docker + Docker Compose (для контейнерного запуску)
-- kubectl + доступ до кластера (для K8s deployment)
+- Docker + Docker Compose (for containerized runs)
+- kubectl + cluster access (for K8s deployment)
 
-### Локальний запуск
+### Local run
 
 ```bash
 cd Lab4/a2a-agents
 
-# 1. Створити virtualenv
+# 1. Create virtualenv
 python -m venv .venv
 source .venv/bin/activate
 
-# 2. Встановити залежності
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Запустити Assistant Agent (термінал 1)
+# 3. Start Assistant Agent (terminal 1)
 cd src/assistant-agent
 python __main__.py
-# → Agent Card: http://localhost:9000/.well-known/agent-card.json
+# → Agent Card: http://127.0.0.1:14000/.well-known/agent-card.json
 
-# 4. Запустити Orchestrator Agent (термінал 2)
+# 4. Start Orchestrator Agent (terminal 2)
 cd src/orchestrator-agent
+# A2A_ASSISTANT_URL=http://127.0.0.1:14000
 python __main__.py
-# → Agent Card: http://localhost:9001/.well-known/agent-card.json
+# → Agent Card: http://127.0.0.1:14001/.well-known/agent-card.json
 ```
 
 ### Docker Compose
+
+Agent ports: **14000** (assistant) and **14001** (orchestrator) — 14xxx range, separate from typical services on 9000 (e.g. MinIO).
 
 ```bash
 cd Lab4/a2a-agents
 docker compose up --build
 ```
 
-### Перевірка Agent Card (Well-Known URI)
+### Verify Agent Card (Well-Known URI)
 
 ```bash
-# Assistant Agent Card
-curl -s http://localhost:9000/.well-known/agent-card.json | jq .
+# Assistant Agent Card (compose)
+curl -s http://127.0.0.1:14000/.well-known/agent-card.json | jq .
 
-# Orchestrator Agent Card
-curl -s http://localhost:9001/.well-known/agent-card.json | jq .
+# Orchestrator Agent Card (compose)
+curl -s http://127.0.0.1:14001/.well-known/agent-card.json | jq .
 ```
 
-Очікуваний результат (assistant):
+Expected shape (assistant):
 ```json
 {
   "name": "Personal Assistant Agent",
-  "description": "Персональний AI-асистент з доступом до Knowledge Base...",
+  "description": "Personal AI assistant with access to Knowledge Base...",
   "version": "1.0.0",
   "skills": [
     {"id": "knowledge_base", "name": "Knowledge Base", ...},
@@ -211,170 +218,291 @@ curl -s http://localhost:9001/.well-known/agent-card.json | jq .
     {"id": "task_manager", "name": "Task Manager", ...}
   ],
   "capabilities": {"streaming": false, "push_notifications": false},
-  "supported_interfaces": [{"protocol_binding": "JSONRPC", "url": "http://localhost:9000"}]
+  "url": "http://127.0.0.1:14000/",
+  "preferredTransport": "JSONRPC",
+  "additionalInterfaces": [{"transport": "JSONRPC", "url": "http://127.0.0.1:14000/"}]
 }
 ```
 
-### Відправка A2A Task
+### Sending an A2A task
+
+In **a2a-sdk 0.3.x** the JSON-RPC method is **`message/send`**. The message body must include **`kind`: `"message"`**, **`messageId`** (UUID), and in **`parts`** use **`kind`: `"text"`** (not legacy `a2a.SendMessage` / `type: text`). To wait for task completion, set **`configuration.blocking`: true**.
 
 ```bash
-# Надіслати повідомлення Assistant Agent
-curl -s -X POST http://localhost:9000/ \
+# Send a message to the Assistant Agent (compose)
+# Replace messageId with your own UUID (uuidgen / python -c "import uuid; print(uuid.uuid4())")
+curl -s -X POST http://127.0.0.1:14000/ \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": "1",
-    "method": "a2a.SendMessage",
+    "method": "message/send",
     "params": {
       "message": {
+        "kind": "message",
         "role": "user",
-        "parts": [{"type": "text", "text": "Покажи список документів"}]
-      }
+        "messageId": "550e8400-e29b-41d4-a716-446655440000",
+        "parts": [{"kind": "text", "text": "Show the list of documents"}]
+      },
+      "configuration": {"blocking": true}
     }
   }' | jq .
 ```
 
-### Міжагентна комунікація (Orchestrator → Assistant)
+### Inter-agent flow (Orchestrator → Assistant)
 
 ```bash
-# Orchestrator виявляє агентів
-curl -s -X POST http://localhost:9001/ \
+# Orchestrator discovery
+curl -s -X POST http://127.0.0.1:14001/ \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": "1",
-    "method": "a2a.SendMessage",
+    "method": "message/send",
     "params": {
       "message": {
+        "kind": "message",
         "role": "user",
-        "parts": [{"type": "text", "text": "discover"}]
-      }
+        "messageId": "550e8400-e29b-41d4-a716-446655440001",
+        "parts": [{"kind": "text", "text": "discover"}]
+      },
+      "configuration": {"blocking": true}
     }
   }' | jq .
 
-# Orchestrator делегує задачу до Assistant
-curl -s -X POST http://localhost:9001/ \
+# Orchestrator delegates to the Assistant
+curl -s -X POST http://127.0.0.1:14001/ \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
     "id": "2",
-    "method": "a2a.SendMessage",
+    "method": "message/send",
     "params": {
       "message": {
+        "kind": "message",
         "role": "user",
-        "parts": [{"type": "text", "text": "Покажи список документів"}]
-      }
+        "messageId": "550e8400-e29b-41d4-a716-446655440002",
+        "parts": [{"kind": "text", "text": "Show the list of documents"}]
+      },
+      "configuration": {"blocking": true}
     }
   }' | jq .
 ```
 
-### Тестовий скрипт
+### Test script
+
+By default the script targets **`http://127.0.0.1:14000`** / **`:14001`** with **`trust_env=False`** (no proxy for localhost).
+
+For **Kubernetes**, use **port-forward** to the same local ports (or others + env):
 
 ```bash
-# Тест assistant
-python test_a2a.py assistant
-
-# Тест orchestrator (delegation)
-python test_a2a.py orchestrator
-
-# Discovery обох агентів
+kubectl port-forward -n a2a svc/a2a-assistant-agent 14000:14000 &
+kubectl port-forward -n a2a svc/a2a-orchestrator-agent 14001:14001 &
 python test_a2a.py discover
 ```
 
-## Kubernetes Deployment
+If **14000/14001** are busy, forward to free ports, e.g. `kubectl port-forward ... 24000:14000` and set `A2A_TEST_ASSISTANT_URL=http://127.0.0.1:24000`.
 
-### Збірка Docker-образів
+```bash
+# Test assistant
+python test_a2a.py assistant
+
+# Test orchestrator (delegation)
+python test_a2a.py orchestrator
+
+# Discover both agents
+python test_a2a.py discover
+
+# Minimal smoke (agent card + one message/send to assistant), exit code 0/1
+python test_a2a.py smoke
+```
+
+### Tests and sample responses
+
+**Unit tests** (`message/send` shape and text extraction from `Task` / `Message`):
+
+```bash
+cd Lab4/a2a-agents
+pip install -r requirements-dev.txt
+python -m pytest tests/test_a2a_http_client.py -v
+```
+
+Expected output (abbreviated): `5 passed`.
+
+**Example success response** (camelCase fields; structure depends on the agent; often a **`kind`: `"task"`** object with **`artifacts[].parts[]`** or updates in **`status.message`**):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": {
+    "kind": "task",
+    "id": "...",
+    "contextId": "...",
+    "status": {
+      "state": "completed",
+      "message": null
+    },
+    "artifacts": [
+      {
+        "artifactId": "...",
+        "name": "response",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "Agent reply text (e.g. document list from KB)..."
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+If the server returns **`"error": {"code": -32601, "message": "Method not found"}`**, ensure the request uses **`"method": "message/send"`** and the current **`params.message`** shape (see `curl` examples above). **`test_a2a.py`** prints a **“Extracted reply text”** block after the raw JSON — same logic as the orchestrator (`a2a_http_client.py`).
+
+## Kubernetes deployment
+
+### Build Docker images
 
 ```bash
 cd Lab4/a2a-agents
 
-# Збірка образів
+# Build images
+docker build -f Dockerfile.assistant -t a2a-assistant-agent:latest .
+docker build -f Dockerfile.orchestrator -t a2a-orchestrator-agent:latest .
+```
+
+### Rancher Desktop: images for Kubernetes
+
+**Important: one context for Docker and for the cluster.** If `kubectl` points at **Rancher Desktop** but `docker build` runs in **Docker Desktop** (build logs show `docker-desktop://...`), the image lands in the wrong store: `nerdctl -n k8s.io load` then looks for the k3s socket (`/run/k3s/containerd/...`) and fails, and RD pods cannot see the image.
+
+Before building, verify and switch Docker context to Rancher Desktop if needed:
+
+```bash
+docker context ls
+docker context use rancher-desktop   # or: docker --context rancher-desktop build ...
+kubectl config current-context       # should be rancher-desktop (or your RD k3s)
+```
+
+Then depends on **Container engine** under Preferences → Container Engine:
+
+**1. Moby (dockerd)** — simplest for the lab: after `docker context use rancher-desktop`, `docker build` is enough; Kubernetes uses the same local store. **No** `nerdctl load`. Keep `imagePullPolicy: IfNotPresent` in Deployments.
+
+**2. containerd + nerdctl** — pod images must be in the **`k8s.io`** namespace ([docs](https://docs.rancherdesktop.io/tutorials/working-with-images)).
+
+- `nerdctl -n k8s.io build` needs **BuildKit**. If you see `no buildkit host is available`, do not use this path.
+- Import after build **only in the same environment** as the cluster:
+
+```bash
+docker context use rancher-desktop
+cd Lab4/a2a-agents
+
 docker build -f Dockerfile.assistant -t a2a-assistant-agent:latest .
 docker build -f Dockerfile.orchestrator -t a2a-orchestrator-agent:latest .
 
-# Для Rancher Desktop
-rdctl shell ctr -n k8s.io images import < <(docker save a2a-assistant-agent:latest)
-rdctl shell ctr -n k8s.io images import < <(docker save a2a-orchestrator-agent:latest)
+docker save a2a-assistant-agent:latest | nerdctl -n k8s.io load
+docker save a2a-orchestrator-agent:latest | nerdctl -n k8s.io load
 ```
 
-### Розгортання
+If you still get `cannot access containerd socket "/run/k3s/containerd/containerd.sock"` — often a different **`nerdctl`** in PATH (e.g. Homebrew) than the one bundled with Rancher Desktop. Restart the terminal after starting RD or check `which nerdctl` (expect a path inside `Rancher Desktop.app` / RD resources).
+
+**3. kind / minikube** — `kind load docker-image ...` / `minikube image load ...`.
+
+`rdctl shell ctr ...` is often unnecessary; if you previously hit `containerd.sock` errors, align **docker context** and **kubectl context** first.
+
+### Deploy
 
 ```bash
 # Option A: Kustomize
 kubectl apply -k Lab4/manifests/k8s/
 
-# Option B: Послідовно
+# Option B: Apply files in order
 kubectl apply -f Lab4/manifests/k8s/namespace.yaml
-kubectl apply -f Lab4/manifests/k8s/secrets-example.yaml  # або secrets.yaml
+kubectl apply -f Lab4/manifests/k8s/secrets-example.yaml  # or secrets.yaml
 kubectl apply -f Lab4/manifests/k8s/assistant-agent.yaml
 kubectl apply -f Lab4/manifests/k8s/orchestrator-agent.yaml
 ```
 
-### Inventory (перелік AI-ресурсів)
+### Inventory (AI resource list)
 
 ```bash
-# Розгорнути inventory ConfigMap
+# Deploy inventory ConfigMap
 kubectl apply -f Lab4/manifests/inventory/abox-inventory.yaml
 
-# Переглянути всі AI-ресурси в кластері
+# List AI resources in the cluster
 kubectl get agents,mcpservers -n kagent
 kubectl get deployments -n a2a
 
-# Переглянути inventory
+# View inventory
 kubectl get configmap ai-inventory-config -n kagent -o yaml
 ```
 
-### Перевірка
+### Verification
 
 ```bash
-# Pods status
+# Pod status
 kubectl get pods -n a2a
 
-# Agent Card через port-forward
-kubectl port-forward svc/a2a-assistant-agent -n a2a 9000:9000 &
-curl -s http://localhost:9000/.well-known/agent-card.json | jq .
+# Agent Card via port-forward
+kubectl port-forward svc/a2a-assistant-agent -n a2a 14000:14000 &
+curl -s http://127.0.0.1:14000/.well-known/agent-card.json | jq .
 
 # Logs
 kubectl logs -n a2a -l app=a2a-assistant-agent --tail=50
 kubectl logs -n a2a -l app=a2a-orchestrator-agent --tail=50
 ```
 
-## Infrastructure (Advanced)
+## Infrastructure (advanced)
 
 ### MCPG — MCP Security Governance
 
-Для розгортання MCP Security Governance у кластері:
+To deploy MCP Security Governance in the cluster:
 
 ```bash
-# Клонувати репозиторій
+# Clone repository
 git clone https://github.com/techwithhuz/mcp-security-governance.git
 
-# Розгорнути за інструкціями README
-# MCPG дозволяє:
-# - Контроль доступу до MCP серверів
-# - Audit logging MCP tool calls
-# - Policy enforcement для AI агентів
+# Deploy per README
+# MCPG provides:
+# - Access control for MCP servers
+# - Audit logging of MCP tool calls
+# - Policy enforcement for AI agents
 ```
 
-## Змінні середовища
+## Environment variables
 
-| Агент | Змінна | Значення за замовч. | Опис |
-|-------|--------|---------------------|------|
-| assistant | `KB_API_BASE_URL` | `http://localhost:8000` | URL Knowledge Base backend |
-| assistant | `KB_API_KEY` | `""` | API Key для KB |
-| orchestrator | `A2A_AGENT_URLS` | `http://localhost:9000` | Comma-separated URLs агентів |
+| Agent | Variable | Default | Description |
+|-------|----------|---------|-------------|
+| assistant | `KB_API_BASE_URL` | `http://localhost:8000` | Knowledge Base backend URL |
+| assistant | `KB_API_KEY` | `""` | API key for KB |
+| assistant / orchestrator | `A2A_PUBLIC_BASE_URL` | `http://localhost:<port>` | URL in Agent Card (K8s: service DNS; set in `docker-compose.yaml` for compose) |
+| assistant | `A2A_ASSISTANT_PORT` | `14000` | Uvicorn port |
+| orchestrator | `A2A_ORCHESTRATOR_PORT` | `14001` | Orchestrator port |
+| orchestrator | `A2A_ASSISTANT_URL` | `http://localhost:14000` | Assistant URL (compose: `http://assistant-agent:14000`) |
+| tests | `A2A_TEST_ASSISTANT_URL` | `http://127.0.0.1:14000` | Target for `test_a2a.py` |
+| tests | `A2A_TEST_ORCHESTRATOR_URL` | `http://127.0.0.1:14001` | Same for orchestrator |
+| orchestrator | `A2A_AGENT_URLS` | — | Legacy: if `A2A_ASSISTANT_URL` is empty, first URL from comma-separated list |
 
 ## Troubleshooting
 
-| Проблема | Рішення |
-|----------|---------|
-| `Connection refused` на 9000 | Перевірте що assistant agent запущений |
-| Agent Card повертає 404 | Перевірте URL: `/.well-known/agent-card.json` (не `agent.json`) |
-| Orchestrator не бачить assistant | Перевірте `A2A_AGENT_URLS` та мережеву доступність |
-| K8s pods CrashLoopBackOff | `kubectl logs -n a2a <pod>` — перевірте залежності |
+| Issue | Fix |
+|-------|-----|
+| `Connection refused` on 14000 / 14001 | Check `docker compose` or port-forward |
+| XML `InvalidBucketName` | Request hit **MinIO/S3**, not A2A; verify URL and port (`lsof -i :14000`) |
+| Agent Card returns 404 | Check URL: `/.well-known/agent-card.json` (not `agent.json`) |
+| Orchestrator cannot reach assistant | Check `A2A_ASSISTANT_URL` and network reachability |
+| K8s pods CrashLoopBackOff | `kubectl logs -n a2a <pod>` — check dependencies |
+| Build on Docker Desktop, cluster on Rancher Desktop | `docker context use rancher-desktop` before `docker build`, or use Moby only in RD |
+| `nerdctl` / `no such file` for k3s socket | Often Homebrew `nerdctl`; use Rancher Desktop CLI, same docker context |
+| `deployments ... not found` on restart | `kubectl apply -k Lab4/manifests/k8s/` and `-n a2a`; check `kubectl config current-context` |
+| `400` + XML S3 / `InvalidBucketName` | You hit S3 API, not A2A on **14000** |
+| `400` on agent-card (other) | Proxy (script uses `trust_env=False`); `lsof -i :14000` |
+| `JSONDecodeError` / empty body | Wrong process on port or broken port-forward; restart agents |
 | `ModuleNotFoundError: a2a` | `pip install "a2a-sdk[http-server]"` |
+| JSON-RPC `-32601` Method not found | For SDK 0.3.x use **`message/send`**, not `a2a.SendMessage`; `message` needs `kind`, `messageId`, `parts[].kind` |
 
-## Корисні посилання
+## References
 
 - [A2A Protocol Specification](https://a2a-protocol.org/latest/)
 - [a2a-python SDK (GitHub)](https://github.com/google-a2a/a2a-python)

@@ -1,11 +1,11 @@
-# Kagent Inventory — перелік AI ресурсів у кластері.
-# Застосовується на abox (або будь-якому кластері з kagent).
+# Kagent Inventory — list of AI resources in the cluster.
+# Apply on abox (or any cluster with kagent).
 #
-# Для перегляду ресурсів:
+# List resources:
 #   kubectl get agents,mcpservers,modelconfigs -n kagent
 #   kubectl get agents -A -o wide
 #
-# Inventory API (якщо kagent UI доступний):
+# Inventory API (if kagent UI is available):
 #   curl http://<kagent-ui>:8080/api/agents
 #   curl http://<kagent-ui>:8080/api/mcpservers
 ---
@@ -33,7 +33,7 @@ data:
       - name: a2a-assistant-agent
         type: A2A Protocol (Lab4)
         namespace: a2a
-        endpoint: http://a2a-assistant-agent.a2a:9000
+        endpoint: http://a2a-assistant-agent.a2a:14000
         well_known: /.well-known/agent-card.json
         skills:
           - knowledge_base
@@ -43,7 +43,7 @@ data:
       - name: a2a-orchestrator-agent
         type: A2A Protocol (Lab4)
         namespace: a2a
-        endpoint: http://a2a-orchestrator-agent.a2a:9001
+        endpoint: http://a2a-orchestrator-agent.a2a:14001
         well_known: /.well-known/agent-card.json
         skills:
           - orchestration (agent discovery & delegation)
