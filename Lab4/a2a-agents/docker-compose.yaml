@@ -2,8 +2,8 @@
 services:
   assistant-agent:
     build:
-      context: .
-      dockerfile: Dockerfile.assistant
+      context: ../..
+      dockerfile: Lab4/a2a-agents/Dockerfile.assistant
     ports:
       - "14000:14000"
     environment:
@@ -11,12 +11,16 @@ services:
       - KB_API_KEY=${KB_API_KEY:-}
       - A2A_ASSISTANT_PORT=14000
       - A2A_PUBLIC_BASE_URL=http://127.0.0.1:14000
+      # Lesson/tasks MCP paths come from the image (Lab3/mcp-servers → /opt/lab3-runtime).
+      # Mount agents/core/scripts via docker-compose.lab3-mcp.yaml + LAB3_AGENTIC_ROOT.
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
+      - ENABLE_DELETE_TOOLS=${ENABLE_DELETE_TOOLS:-0}
     restart: unless-stopped
 
   orchestrator-agent:
     build:
-      context: .
-      dockerfile: Dockerfile.orchestrator
+      context: ../..
+      dockerfile: Lab4/a2a-agents/Dockerfile.orchestrator
     ports:
       - "14001:14001"
     environment:

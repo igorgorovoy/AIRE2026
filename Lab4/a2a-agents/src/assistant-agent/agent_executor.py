@@ -1,14 +1,14 @@
 """A2A AgentExecutor for the Personal Assistant agent.
 
-Wraps the Lab3 MCP tools (Knowledge Base, Lesson Credits, Task Manager)
-and exposes them via A2A protocol. The agent receives user messages,
-routes them to the appropriate MCP tool, and returns results as A2A artifacts.
+Invokes the same MCP tools as Lab3 (stdio MCP servers): Knowledge Base is always
+started from ``mcp/knowledge_base_server.py``. Lesson Credits and Task Manager
+start only when ``MCP_LESSON_CREDITS_SCRIPT`` / ``MCP_TASKS_SCRIPT`` point to
+Lab3 ``server.py`` files and CWD env vars match a project tree with ``agents/`` + ``core/``.
 """
 
-import os
-from urllib.parse import quote
+from __future__ import annotations
 
-import httpx
+import re
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -22,115 +22,130 @@ from a2a.utils.artifact import new_text_artifact
 from a2a.utils.message import new_agent_text_message
 from a2a.utils.task import new_task
 
+from mcp_stdio_hub import AssistantMcpHub, get_mcp_hub
 
-# ---------------------------------------------------------------------------
-# MCP Tool implementations (ported from Lab3 MCP servers)
-# ---------------------------------------------------------------------------
-
-KB_API_BASE = os.getenv("KB_API_BASE_URL", "http://localhost:8000").rstrip("/")
-KB_API_KEY = os.getenv("KB_API_KEY", "")
-
-
-def _kb_headers() -> dict:
-    h = {"Accept": "application/json"}
-    if KB_API_KEY:
-        h["X-API-Key"] = KB_API_KEY
-    return h
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+    re.IGNORECASE,
+)
 
 
-async def kb_list_documents() -> str:
-    """List documents from the knowledge base with modification times."""
-    url = f"{KB_API_BASE}/api/kb-graph/mtimes"
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.get(url, headers=_kb_headers())
-        resp.raise_for_status()
-        mtimes = resp.json().get("mtimes", {})
-        lines = [f"- {p} | {v}" for p, v in sorted(mtimes.items(), key=lambda x: -x[1])[:50]]
-        return "\n".join(lines) if lines else "No documents"
+async def route_message(text: str, hub: AssistantMcpHub) -> str:
+    """Keyword routing to MCP ``call_tool`` (same tool names as Lab3)."""
+    lower = text.lower().strip()
 
+    # --- Lesson Credits (optional MCP) ---
+    if hub.lessons and hub.lessons.configured:
+        if any(
+            k in lower
+            for k in [
+                "lesson",
+                "calendar",
+                "credit",
+                "balance",
+                "top up",
+                "deduct",
+                "transaction",
+            ]
+        ):
+            if "balance" in lower:
+                ids = _UUID_RE.findall(text)
+                if ids:
+                    return await hub.lessons.call_tool(
+                        "lessons_get_balance",
+                        {"calendar_id": ids[0]},
+                    )
+            return await hub.lessons.call_tool("lessons_list_calendars", {})
 
-async def kb_get_document(path: str) -> str:
-    """Get document content by path."""
-    encoded = quote(path, safe="/")
-    url = f"{KB_API_BASE}/api/kb-graph/doc/{encoded}"
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.get(url, headers=_kb_headers())
-        resp.raise_for_status()
-        content = resp.json().get("content", "")
-        return content or "(empty document)"
+    # --- Task Manager (optional MCP) ---
+    if hub.tasks and hub.tasks.configured:
+        if any(
+            k in lower
+            for k in [
+                "workspace",
+                "kanban",
+                "task manager",
+                "list boards",
+                "list cards",
+            ]
+        ):
+            return await hub.tasks.call_tool("tasks_list_workspaces", {})
 
+    # --- Knowledge Base (bundled MCP) ---
+    if not hub.kb.configured:
+        return (
+            "Knowledge Base MCP is not available (missing server script). "
+            "Check MCP_KB_SCRIPT and image layout."
+        )
 
-async def kb_graph_get(limit: int = 500) -> str:
-    """Get the document graph (nodes, edges)."""
-    url = f"{KB_API_BASE}/api/kb-graph?limit={limit}&force=false"
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.get(url, headers=_kb_headers())
-        resp.raise_for_status()
-        data = resp.json()
-        nodes = data.get("nodes", [])
-        edges = data.get("edges", [])
-        return f"Nodes: {len(nodes)}, Edges: {len(edges)}. Sample nodes: {nodes[:5]}"
+    if any(k in lower for k in ["graph", "nodes", "edges"]) and any(
+        k in lower for k in ["knowledge", "vault", "obsidian", "graph", "kb", "document"]
+    ):
+        return await hub.kb.call_tool("kb_graph_get", {"limit": 500, "force": False})
 
+    if any(k in lower for k in ["rebuild", "re-index", "reindex"]) and any(
+        k in lower for k in ["knowledge", "vault", "index", "kb"]
+    ):
+        return await hub.kb.call_tool("kb_graph_rebuild", {})
 
-# ---------------------------------------------------------------------------
-# Simple intent routing (keyword-based for demo purposes)
-# ---------------------------------------------------------------------------
+    if any(k in lower for k in ["get document", "show document", "read document", "open document"]):
+        for prefix in ("get document ", "show document ", "read document ", "open document "):
+            if prefix in lower:
+                idx = lower.index(prefix)
+                path = text[idx + len(prefix) :].strip().strip("'\"")
+                if path:
+                    return await hub.kb.call_tool("kb_get_document", {"path": path})
+                break
 
-TOOL_REGISTRY = {
-    "kb_list_documents": kb_list_documents,
-    "kb_get_document": kb_get_document,
-    "kb_graph_get": kb_graph_get,
-}
-
-
-async def route_message(text: str) -> str:
-    """Route a user message to the appropriate tool based on keywords."""
-    lower = text.lower()
-
-    # Knowledge Base routing
     if any(
-        kw in lower
-        for kw in [
+        k in lower
+        for k in [
             "document",
             "list",
             "knowledge",
             "vault",
             "obsidian",
+            "files",
         ]
     ):
-        if any(kw in lower for kw in ["graph", "nodes", "edges"]):
-            return await kb_graph_get()
-        return await kb_list_documents()
+        if "workspace" in lower or "calendar" in lower or "lesson" in lower:
+            pass
+        else:
+            if any(k in lower for k in ["graph", "nodes", "edges"]):
+                return await hub.kb.call_tool("kb_graph_get", {})
+            return await hub.kb.call_tool("kb_list_documents", {})
 
-    if any(kw in lower for kw in ["get", "show document", "content"]):
-        for prefix in [
-            "get document ",
-            "show document ",
-        ]:
-            if prefix in lower:
-                path = text[lower.index(prefix) + len(prefix) :].strip().strip("'\"")
-                if path:
-                    return await kb_get_document(path)
-        return await kb_list_documents()
-
-    # Default: describe capabilities
-    return (
-        "I am a personal AI assistant with access to:\n"
-        "1. **Knowledge Base** — Obsidian vault documents\n"
-        "   - Try 'list documents' or 'knowledge base graph'\n"
-        "2. **Lesson Credits** — lesson accounting (requires MCP backend)\n"
-        "3. **Task Manager** — task management (requires MCP backend)\n\n"
-        "What would you like to do?"
+    lines = [
+        "I am a personal AI assistant using **MCP tools** (same protocol as Lab3).",
+        "",
+        "1. **Knowledge Base** — list/read/graph Obsidian documents via MCP.",
+    ]
+    if hub.lessons and hub.lessons.configured:
+        lines.append(
+            "2. **Lesson Credits** — MCP connected. Try: lesson calendars, balance <calendar_id>."
+        )
+    else:
+        lines.append(
+            "2. **Lesson Credits** — not connected. Set MCP_LESSON_CREDITS_SCRIPT and "
+            "MCP_LESSON_CREDITS_CWD (project root with agents/ + core/)."
+        )
+    if hub.tasks and hub.tasks.configured:
+        lines.append("3. **Task Manager** — MCP connected. Try: list workspaces.")
+    else:
+        lines.append(
+            "3. **Task Manager** — not connected. Set MCP_TASKS_SCRIPT and MCP_TASKS_CWD."
+        )
+    lines.extend(
+        [
+            "",
+            "Try: `list documents`, `knowledge graph`, `get document path/to/file.md`.",
+        ]
     )
-
-
-# ---------------------------------------------------------------------------
-# A2A AgentExecutor
-# ---------------------------------------------------------------------------
+    return "\n".join(lines)
 
 
 class AssistantAgentExecutor(AgentExecutor):
-    """A2A executor that routes user messages to MCP tools."""
+    """Routes user messages to MCP tool calls (stdio), Lab3-compatible tool names."""
 
     async def execute(
         self,
@@ -140,19 +155,19 @@ class AssistantAgentExecutor(AgentExecutor):
         task = context.current_task or new_task(context.message)
         await event_queue.enqueue_event(task)
 
-        # Signal working
         await event_queue.enqueue_event(
             TaskStatusUpdateEvent(
                 task_id=context.task_id,
                 context_id=context.context_id,
                 status=TaskStatus(
                     state=TaskState.working,
-                    message=new_agent_text_message("Processing request..."),
+                    message=new_agent_text_message(
+                        "Calling MCP tools (Knowledge Base / optional Lab3 servers)..."
+                    ),
                 ),
             )
         )
 
-        # Extract text from the incoming message
         user_text = ""
         if context.message and context.message.parts:
             for part in context.message.parts:
@@ -162,13 +177,12 @@ class AssistantAgentExecutor(AgentExecutor):
         if not user_text:
             user_text = "help"
 
-        # Route to appropriate tool
         try:
-            result = await route_message(user_text)
+            hub = await get_mcp_hub()
+            result = await route_message(user_text, hub)
         except Exception as e:
             result = f"Error: {e}"
 
-        # Send artifact
         await event_queue.enqueue_event(
             TaskArtifactUpdateEvent(
                 task_id=context.task_id,
@@ -177,7 +191,6 @@ class AssistantAgentExecutor(AgentExecutor):
             )
         )
 
-        # Signal completed
         await event_queue.enqueue_event(
             TaskStatusUpdateEvent(
                 task_id=context.task_id,

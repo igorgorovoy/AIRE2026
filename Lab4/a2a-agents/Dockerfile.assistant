@@ -1,11 +1,25 @@
+# Build context: AIRE2026 repository ROOT (not Lab4/a2a-agents).
+# See build.sh and docker-compose.yaml (context: ../..).
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY Lab4/a2a-agents/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/assistant-agent/ .
+COPY Lab4/a2a-agents/mcp/knowledge_base_server.py mcp/
+COPY Lab4/a2a-agents/src/assistant-agent/ .
+
+# Lab3 MCP stdio servers — same layout as Lab3 Dockerfiles:
+# server at …/mcp-servers-lesson-credits/server.py → parents[1] == /opt/lab3-runtime
+RUN mkdir -p /opt/lab3-runtime/mcp-servers-lesson-credits /opt/lab3-runtime/mcp-servers-tasks
+COPY Lab3/mcp-servers/src/lesson-credits/server.py /opt/lab3-runtime/mcp-servers-lesson-credits/server.py
+COPY Lab3/mcp-servers/src/tasks/server.py /opt/lab3-runtime/mcp-servers-tasks/server.py
+
+ENV MCP_LESSON_CREDITS_SCRIPT=/opt/lab3-runtime/mcp-servers-lesson-credits/server.py
+ENV MCP_TASKS_SCRIPT=/opt/lab3-runtime/mcp-servers-tasks/server.py
+ENV MCP_LESSON_CREDITS_CWD=/opt/lab3-runtime
+ENV MCP_TASKS_CWD=/opt/lab3-runtime
 
 EXPOSE 14000
 

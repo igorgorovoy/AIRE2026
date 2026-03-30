@@ -94,10 +94,13 @@ Lab4/
 │   ├── requirements-dev.txt             ← pytest (unit tests)
 │   ├── tests/
 │   │   └── test_a2a_http_client.py      ← unit tests for request/response shape
+│   ├── mcp/
+│   │   └── knowledge_base_server.py     ← stdio MCP server (Lab3-compatible KB tools)
 │   └── src/
 │       ├── assistant-agent/
 │       │   ├── __main__.py              ← Agent Card + A2A server setup
-│       │   └── agent_executor.py        ← AgentExecutor with MCP tool routing
+│       │   ├── agent_executor.py        ← AgentExecutor → MCP call_tool routing
+│       │   └── mcp_stdio_hub.py         ← MCP stdio client(s) + optional Lab3 servers
 │       └── orchestrator-agent/
 │           ├── __main__.py              ← Agent Card + A2A server setup
 │           └── agent_executor.py        ← Discovery + delegation via A2A
@@ -119,16 +122,20 @@ Lab4/
 
 **File:** `a2a-agents/src/assistant-agent/__main__.py`
 
-Wraps Lab3 MCP tools in the A2A protocol:
+Wraps **Lab3-compatible MCP tools** (stdio MCP) in the A2A protocol:
 
 - **Agent Card** with three skills (knowledge_base, lesson_credits, task_manager)
 - **Well-Known URI**: `GET http://127.0.0.1:14000/.well-known/agent-card.json` (assistant port in the 14xxx range)
 - **A2A endpoint**: `POST http://127.0.0.1:14000/` (or env `A2A_ASSISTANT_PORT` / `A2A_TEST_*_URL`)
 - Uses `a2a-sdk`: `A2AStarletteApplication`, `DefaultRequestHandler`, `InMemoryTaskStore`
 
+**MCP integration** (`mcp_stdio_hub.py` + `mcp/knowledge_base_server.py`):
+- **Knowledge Base** — always uses a bundled MCP server process (same tool names as Lab3: `kb_list_documents`, `kb_get_document`, `kb_graph_get`, `kb_graph_rebuild`, `kb_edit_document`). The assistant runs an MCP **client** over stdio to that subprocess.
+- **Lesson Credits / Task Manager** — Docker image includes `server.py` from `Lab3/mcp-servers` under `/opt/lab3-runtime` (Lab3-style `mcp-servers-*` paths). Mount `agents/`, `core/`, and `scripts/` from your full agentic-ai project (`docker-compose.lab3-mcp.yaml` + `LAB3_AGENTIC_ROOT`). Install that project’s Python dependencies into the image (extend Dockerfile or custom `FROM`) so imports resolve. Set `MCP_*_SCRIPT` to empty in the environment to disable lesson/tasks MCP.
+
 **AgentExecutor** (`agent_executor.py`):
 - Handles incoming A2A messages → extracts text from `message.parts` (SDK model)
-- Keyword routing to KB / Lessons / Tasks tools
+- Keyword routing → `call_tool` on the appropriate MCP session (not raw HTTP in Python)
 - Returns results as `TaskArtifactUpdateEvent` (TextPart)
 
 ### 2. Orchestrator Agent (A2A Client + Server)
@@ -474,8 +481,13 @@ git clone https://github.com/techwithhuz/mcp-security-governance.git
 
 | Agent | Variable | Default | Description |
 |-------|----------|---------|-------------|
-| assistant | `KB_API_BASE_URL` | `http://localhost:8000` | Knowledge Base backend URL |
-| assistant | `KB_API_KEY` | `""` | API key for KB |
+| assistant | `KB_API_BASE_URL` | `http://localhost:8000` | Passed through to the **KB MCP subprocess** (and must be reachable from that process: in K8s, from the assistant pod). |
+| assistant | `KB_API_KEY` / `API_KEY` | `""` | API key for KB (subprocess env maps `KB_API_KEY` → `API_KEY` if needed). |
+| assistant | `MCP_KB_SCRIPT` | bundled `mcp/knowledge_base_server.py` | Override path to KB MCP server script. |
+| assistant | `MCP_LESSON_CREDITS_SCRIPT` | `/opt/lab3-runtime/mcp-servers-lesson-credits/server.py` (in image) | Copied from `Lab3/mcp-servers/src/lesson-credits/server.py` at build time. Unset or empty to disable. |
+| assistant | `MCP_LESSON_CREDITS_CWD` | `/opt/lab3-runtime` | Must contain `agents/` and `core/` (bind-mount from your agentic-ai project; see `docker-compose.lab3-mcp.yaml`). |
+| assistant | `MCP_TASKS_SCRIPT` | `/opt/lab3-runtime/mcp-servers-tasks/server.py` (in image) | Copied from `Lab3/mcp-servers/src/tasks/server.py`. Unset or empty to disable. |
+| assistant | `MCP_TASKS_CWD` | `/opt/lab3-runtime` | Same root; tasks also need `scripts/` for sync tooling. |
 | assistant / orchestrator | `A2A_PUBLIC_BASE_URL` | `http://localhost:<port>` | URL in Agent Card (K8s: service DNS; set in `docker-compose.yaml` for compose) |
 | assistant | `A2A_ASSISTANT_PORT` | `14000` | Uvicorn port |
 | orchestrator | `A2A_ORCHESTRATOR_PORT` | `14001` | Orchestrator port |
@@ -493,6 +505,7 @@ git clone https://github.com/techwithhuz/mcp-security-governance.git
 | Agent Card returns 404 | Check URL: `/.well-known/agent-card.json` (not `agent.json`) |
 | Orchestrator cannot reach assistant | Check `A2A_ASSISTANT_URL` and network reachability |
 | K8s pods CrashLoopBackOff | `kubectl logs -n a2a <pod>` — check dependencies |
+| Assistant errors contacting KB from K8s | `KB_API_BASE_URL` must work **from inside the cluster**. Host-only `localhost:8000` on your Mac is **not** the same as localhost inside a pod. Deploy KB in-cluster, or set URL to `http://host.docker.internal:8000` / `http://host.k3s.internal:8000` / host LAN IP after verifying with `curl` from a throwaway pod (see `secrets-example.yaml` comments). |
 | Build on Docker Desktop, cluster on Rancher Desktop | `docker context use rancher-desktop` before `docker build`, or use Moby only in RD |
 | `nerdctl` / `no such file` for k3s socket | Often Homebrew `nerdctl`; use Rancher Desktop CLI, same docker context |
 | `deployments ... not found` on restart | `kubectl apply -k Lab4/manifests/k8s/` and `-n a2a`; check `kubectl config current-context` |

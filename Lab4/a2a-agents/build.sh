@@ -22,6 +22,8 @@ error()   { echo -e "${RED}✘ $*${RESET}" >&2; exit 1; }
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Dockerfiles COPY Lab4/... and Lab3/... — build context must be repo root.
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # ── Arguments ────────────────────────────────────────────────────────────────
 OPT_LOAD=false
@@ -55,7 +57,7 @@ build_image() {
   echo -e "${BOLD}━━━ $name → $image ━━━${RESET}"
   local start; start=$(date +%s)
 
-  if docker build $CACHE_FLAG -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$SCRIPT_DIR"; then
+  if docker build $CACHE_FLAG -t "$image" -f "$SCRIPT_DIR/$dockerfile" "$REPO_ROOT"; then
     local elapsed=$(( $(date +%s) - start ))
     success "$name built in ${elapsed}s"
   else
@@ -85,6 +87,7 @@ echo "║   Lab4 — A2A Agents Image Build          ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${RESET}"
 echo "  DIR  : $SCRIPT_DIR"
+echo "  CTX  : $REPO_ROOT (repo root for Lab4 + Lab3 COPY paths)"
 echo "  TAG  : $TAG"
 [[ -n "$REGISTRY" ]] && echo "  REG  : $REGISTRY"
 $OPT_NO_CACHE && echo "  MODE : --no-cache"

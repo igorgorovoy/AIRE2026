@@ -1,12 +1,13 @@
+# Build context: AIRE2026 repository ROOT (not Lab4/a2a-agents).
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY Lab4/a2a-agents/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/orchestrator-agent/ .
-COPY a2a_http_client.py .
+COPY Lab4/a2a-agents/src/orchestrator-agent/ .
+COPY Lab4/a2a-agents/a2a_http_client.py .
 
 EXPOSE 14001
 

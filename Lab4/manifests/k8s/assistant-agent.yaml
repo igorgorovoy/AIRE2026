@@ -41,6 +41,9 @@ spec:
                   name: a2a-assistant-secrets
                   key: KB_API_KEY
                   optional: true
+            # Lab3 lesson/tasks MCP (optional): image defaults under /opt/lab3-runtime.
+            # Mount PVC or hostPath with agents/, core/, scripts/ at /opt/lab3-runtime and add pip deps.
+            # To disable: set MCP_LESSON_CREDITS_SCRIPT and MCP_TASKS_SCRIPT to "" via ConfigMap/Env.
           readinessProbe:
             httpGet:
               path: /.well-known/agent-card.json

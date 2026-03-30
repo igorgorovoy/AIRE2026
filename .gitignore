@@ -4,3 +4,6 @@
 # Kubernetes secrets with real credentials
 **/secrets.yaml
 
+**/__pycache__/
+*.py[cod]
+
