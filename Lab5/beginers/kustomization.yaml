@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - phoenix/pvc.yaml
+  - phoenix/deployment.yaml
+  - phoenix/service.yaml
+  - phoenix/ingress.yaml
+  - qdrant/pvc.yaml
+  - qdrant/deployment.yaml
+  - qdrant/service.yaml
+  - qdrant/ingress.yaml

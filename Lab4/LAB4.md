@@ -155,6 +155,12 @@ Orchestrator — single client entry point over A2A:
 - **Services** (ClusterIP) for in-cluster communication
 - Orchestrator reaches the assistant via `A2A_ASSISTANT_URL`; in-cluster: `http://a2a-assistant-agent.a2a.svc.cluster.local:14000`
 
+**k9s — cluster view (Rancher Desktop, example):** Services list shows `a2a-assistant-agent` and `a2a-orchestrator-agent` in namespace `a2a`, alongside kagent MCP services, Traefik, and Agent Gateway.
+
+![k9s: Services (all namespaces) — a2a agents, MCP, LoadBalancers](docs/k9s-services-2026-03-30.png)
+
+![k9s: Pods — a2a assistant/orchestrator Running](docs/k9s-pods-2026-03-30.png)
+
 ### 4. Inventory
 
 ConfigMap `ai-inventory-config` in namespace `kagent` — list of AI resources in the cluster:
