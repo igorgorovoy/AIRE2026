@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - secrets-example.yaml
+  # Secret не включено: застосуйте вручну secrets-example.yaml (шаблон) або secrets.yaml,
+  # інакше kubectl apply -k перезапише кластерний Secret прикладом з репозиторію.
   - assistant-agent.yaml
   - orchestrator-agent.yaml

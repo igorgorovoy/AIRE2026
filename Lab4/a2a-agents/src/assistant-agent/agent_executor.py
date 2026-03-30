@@ -159,6 +159,7 @@ class AssistantAgentExecutor(AgentExecutor):
             TaskStatusUpdateEvent(
                 task_id=context.task_id,
                 context_id=context.context_id,
+                final=False,
                 status=TaskStatus(
                     state=TaskState.working,
                     message=new_agent_text_message(
@@ -195,6 +196,7 @@ class AssistantAgentExecutor(AgentExecutor):
             TaskStatusUpdateEvent(
                 task_id=context.task_id,
                 context_id=context.context_id,
+                final=True,
                 status=TaskStatus(state=TaskState.completed),
             )
         )
