@@ -25,6 +25,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Dockerfiles COPY Lab4/... and Lab3/... — build context must be repo root.
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# agentic-ai-landing-zone: agents/, core/, requirements.txt needed by lesson-credits/tasks MCP.
+ALZ="${ALZ:-}"
+if [[ -z "$ALZ" ]]; then
+  for candidate in "$REPO_ROOT/../agentic-ai-landing-zone" "$REPO_ROOT/../../agentic-ai-landing-zone"; do
+    if [[ -d "$candidate/agents" && -d "$candidate/core" ]]; then
+      ALZ="$(cd "$candidate" && pwd)"
+      break
+    fi
+  done
+fi
+
 # ── Arguments ────────────────────────────────────────────────────────────────
 OPT_LOAD=false
 OPT_NO_CACHE=false
@@ -93,6 +104,28 @@ echo "  TAG  : $TAG"
 $OPT_NO_CACHE && echo "  MODE : --no-cache"
 $OPT_LOAD && echo "  LOAD : Rancher Desktop"
 echo ""
+
+# ── Stage ALZ deps for assistant image ────────────────────────────────────────
+BUILD_ALZ="$REPO_ROOT/.build-alz"
+cleanup_alz() { rm -rf "$BUILD_ALZ"; }
+trap cleanup_alz EXIT
+
+if [[ -n "$ALZ" && -d "$ALZ/agents" ]]; then
+  info "Staging ALZ deps from $ALZ → $BUILD_ALZ"
+  rm -rf "$BUILD_ALZ"
+  mkdir -p "$BUILD_ALZ"
+  cp -r "$ALZ/agents" "$BUILD_ALZ/agents"
+  cp -r "$ALZ/core" "$BUILD_ALZ/core"
+  cp "$ALZ/requirements.txt" "$BUILD_ALZ/requirements.txt"
+  success "ALZ deps staged"
+else
+  warn "agentic-ai-landing-zone not found (ALZ=$ALZ). Lesson-credits and tasks MCP will fail at runtime."
+  warn "Set ALZ=/path/to/agentic-ai-landing-zone or place it next to AIRE2026."
+  rm -rf "$BUILD_ALZ"
+  mkdir -p "$BUILD_ALZ/agents" "$BUILD_ALZ/core"
+  echo "# ALZ not available" > "$BUILD_ALZ/requirements.txt"
+  touch "$BUILD_ALZ/agents/__init__.py" "$BUILD_ALZ/core/__init__.py"
+fi
 
 # ── Build images ─────────────────────────────────────────────────────────────
 build_image "assistant-agent"    "$ASSISTANT_IMAGE"    "Dockerfile.assistant"

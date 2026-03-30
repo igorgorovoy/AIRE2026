@@ -172,8 +172,10 @@ class AssistantAgentExecutor(AgentExecutor):
         user_text = ""
         if context.message and context.message.parts:
             for part in context.message.parts:
-                if hasattr(part, "text"):
-                    user_text += part.text
+                # A2A SDK v0.3.x: Part is a RootModel — text lives in part.root.text
+                inner = getattr(part, "root", part)
+                if hasattr(inner, "text"):
+                    user_text += inner.text
 
         if not user_text:
             user_text = "help"

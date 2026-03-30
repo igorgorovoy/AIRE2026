@@ -1,11 +1,19 @@
 # Build context: AIRE2026 repository ROOT (not Lab4/a2a-agents).
 # See build.sh and docker-compose.yaml (context: ../..).
+#
+# build.sh copies agentic-ai-landing-zone/{agents,core,requirements.txt}
+# into .build-alz/ before invoking docker build.
 FROM python:3.12-slim
 
 WORKDIR /app
 
+# A2A + MCP deps
 COPY Lab4/a2a-agents/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# ALZ deps for lesson-credits / tasks MCP servers (agents/, core/ imports)
+COPY .build-alz/requirements.txt /tmp/alz-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/alz-requirements.txt && rm /tmp/alz-requirements.txt
 
 COPY Lab4/a2a-agents/mcp/knowledge_base_server.py mcp/
 COPY Lab4/a2a-agents/src/assistant-agent/ .
@@ -15,6 +23,10 @@ COPY Lab4/a2a-agents/src/assistant-agent/ .
 RUN mkdir -p /opt/lab3-runtime/mcp-servers-lesson-credits /opt/lab3-runtime/mcp-servers-tasks
 COPY Lab3/mcp-servers/src/lesson-credits/server.py /opt/lab3-runtime/mcp-servers-lesson-credits/server.py
 COPY Lab3/mcp-servers/src/tasks/server.py /opt/lab3-runtime/mcp-servers-tasks/server.py
+
+# ALZ runtime modules required by lesson-credits and tasks servers
+COPY .build-alz/agents/ /opt/lab3-runtime/agents/
+COPY .build-alz/core/ /opt/lab3-runtime/core/
 
 ENV MCP_LESSON_CREDITS_SCRIPT=/opt/lab3-runtime/mcp-servers-lesson-credits/server.py
 ENV MCP_TASKS_SCRIPT=/opt/lab3-runtime/mcp-servers-tasks/server.py
