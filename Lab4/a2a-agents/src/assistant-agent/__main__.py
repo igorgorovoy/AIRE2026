@@ -11,6 +11,8 @@ Usage:
     python src/assistant-agent/__main__.py
 """
 
+import os
+
 import uvicorn
 
 from a2a.server.apps import A2AStarletteApplication
@@ -19,6 +21,7 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
+    AgentInterface,
     AgentSkill,
 )
 
@@ -26,6 +29,14 @@ from agent_executor import AssistantAgentExecutor
 
 HOST = "0.0.0.0"
 PORT = 9000
+
+
+def _agent_card_url() -> str:
+    """Базовий URL у Agent Card (для клієнтів і A2A). У K8s задайте A2A_PUBLIC_BASE_URL."""
+    base = os.getenv("A2A_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if base:
+        return f"{base}/"
+    return f"http://localhost:{PORT}/"
 
 # ---------------------------------------------------------------------------
 # Agent Skills
@@ -80,13 +91,19 @@ skill_task_manager = AgentSkill(
 # Agent Card (public, served at /.well-known/agent-card.json)
 # ---------------------------------------------------------------------------
 
+_AGENT_ENDPOINT = _agent_card_url()
+
 public_agent_card = AgentCard(
     name="Personal Assistant Agent",
     description=(
         "Персональний AI-асистент з доступом до Knowledge Base (Obsidian vault), "
         "Lesson Credits та Task Manager. Supports Ukrainian and English."
     ),
-    url=f"http://localhost:{PORT}/",
+    url=_AGENT_ENDPOINT,
+    preferred_transport="JSONRPC",
+    additional_interfaces=[
+        AgentInterface(transport="JSONRPC", url=_AGENT_ENDPOINT),
+    ],
     version="1.0.0",
     default_input_modes=["text"],
     default_output_modes=["text"],

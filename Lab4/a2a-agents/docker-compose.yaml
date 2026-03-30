@@ -19,7 +19,7 @@ services:
     ports:
       - "9001:9001"
     environment:
-      - A2A_AGENT_URLS=http://assistant-agent:9000
+      - A2A_ASSISTANT_URL=http://assistant-agent:9000
     depends_on:
       - assistant-agent
     restart: unless-stopped

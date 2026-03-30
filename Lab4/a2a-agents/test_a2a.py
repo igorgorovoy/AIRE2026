@@ -18,23 +18,55 @@ Usage:
 """
 
 import json
+import os
 import sys
 
 import httpx
 
-ASSISTANT_URL = "http://localhost:9000"
-ORCHESTRATOR_URL = "http://localhost:9001"
+# Дозволити перевизначення з env (K8s port-forward, інший хост)
+ASSISTANT_URL = os.getenv("A2A_TEST_ASSISTANT_URL", "http://127.0.0.1:9000").rstrip("/")
+ORCHESTRATOR_URL = os.getenv("A2A_TEST_ORCHESTRATOR_URL", "http://127.0.0.1:9001").rstrip(
+    "/"
+)
+
+# Локальні запити не повинні йти через HTTP(S)_PROXY — інакше 400 / порожня відповідь
+_CLIENT_KWARGS = {
+    "timeout": 10,
+    "trust_env": False,
+    "headers": {"Accept": "application/json"},
+}
 
 
 def fetch_agent_card(base_url: str) -> dict:
     """Fetch Agent Card from /.well-known/agent-card.json"""
-    url = f"{base_url}/.well-known/agent-card.json"
+    base = base_url.rstrip("/")
+    url = f"{base}/.well-known/agent-card.json"
     print(f"\n{'='*60}")
     print(f"GET {url}")
     print(f"{'='*60}")
-    resp = httpx.get(url, timeout=10)
-    resp.raise_for_status()
-    card = resp.json()
+    resp = httpx.get(url, **_CLIENT_KWARGS)
+    if resp.status_code >= 400:
+        print(
+            f"Помилка: HTTP {resp.status_code}, "
+            f"Content-Type={resp.headers.get('content-type')!r}, "
+            f"тіло (до 400 симв.): {resp.text[:400]!r}"
+        )
+        print(
+            "Підказка: переконайтесь, що агенти запущені (docker compose / python __main__.py); "
+            "перевірте порт: lsof -i :9000 ; якщо був HTTP_PROXY — скрипт використовує trust_env=False."
+        )
+        resp.raise_for_status()
+    if not (resp.content or b"").strip():
+        print(
+            "Порожня відповідь (очікувався JSON Agent Card). "
+            "Перевірте, що на порту саме A2A-агент, а не інший сервіс / зламаний port-forward."
+        )
+        raise RuntimeError("Порожня відповідь від GET agent-card")
+    try:
+        card = resp.json()
+    except json.JSONDecodeError as e:
+        print(f"Невалідний JSON: {e}; тіло: {resp.text[:400]!r}")
+        raise
     print(json.dumps(card, indent=2, ensure_ascii=False))
     return card
 
@@ -57,13 +89,18 @@ def send_message(base_url: str, text: str) -> dict:
     }
 
     print(f"\n{'='*60}")
-    print(f"POST {base_url}/ — SendMessage: '{text}'")
+    base = base_url.rstrip("/")
+    print(f"POST {base}/ — SendMessage: '{text}'")
     print(f"{'='*60}")
     resp = httpx.post(
-        f"{base_url}/",
+        f"{base}/",
         json=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
         timeout=120,
+        trust_env=False,
     )
     resp.raise_for_status()
     data = resp.json()

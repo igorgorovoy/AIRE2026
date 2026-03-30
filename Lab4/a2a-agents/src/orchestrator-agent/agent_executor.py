@@ -1,11 +1,10 @@
-"""A2A Orchestrator Agent — discovers and delegates tasks to other A2A agents.
+"""A2A Orchestrator Agent — єдина точка входу для клієнта.
 
-This agent:
-1. Discovers available agents via Well-Known URI
-2. Routes user requests to the appropriate agent based on skills
-3. Returns aggregated results
+Оркестратор не викликає MCP напряму: він передає запити Personal Assistant Agent
+(Lab3 / A2A на порту 9000), а той уже маршрутизує до інструментів і зовнішніх систем
+(Knowledge Base, Lesson Credits, Task Manager).
 
-Demonstrates A2A inter-agent communication (agent-to-agent task delegation).
+Демонструє ланцюг: клієнт → A2A оркестратор → A2A асистент → tools / HTTP API.
 """
 
 import json
@@ -26,11 +25,8 @@ from a2a.utils.task import new_task
 
 
 # ---------------------------------------------------------------------------
-# A2A Client: discover agents and send tasks
+# A2A Client: discover assistant and send tasks
 # ---------------------------------------------------------------------------
-
-AGENT_REGISTRY: list[str] = []
-"""List of base URLs for known A2A agents."""
 
 
 async def discover_agent(base_url: str) -> dict | None:
@@ -102,31 +98,15 @@ async def send_task_to_agent(base_url: str, user_text: str) -> str:
         return f"Помилка зв'язку з агентом: {e}"
 
 
-def match_skill(agent_card: dict, user_text: str) -> bool:
-    """Check if any of the agent's skills match the user request."""
-    lower = user_text.lower()
-    for skill in agent_card.get("skills", []):
-        tags = skill.get("tags", [])
-        name = skill.get("name", "").lower()
-        description = skill.get("description", "").lower()
-        # Match by tags or keywords in skill description
-        for tag in tags:
-            if tag.lower() in lower:
-                return True
-        if any(word in lower for word in name.split()):
-            return True
-    return True  # Default: route to first available agent
-
-
 # ---------------------------------------------------------------------------
 # A2A AgentExecutor
 # ---------------------------------------------------------------------------
 
 class OrchestratorAgentExecutor(AgentExecutor):
-    """Orchestrator that discovers agents and delegates tasks via A2A."""
+    """Оркестратор: усі користувацькі завдання передає одному A2A Assistant Agent."""
 
-    def __init__(self, agent_urls: list[str] | None = None):
-        self.agent_urls = agent_urls or ["http://localhost:9000"]
+    def __init__(self, assistant_url: str = "http://localhost:9000"):
+        self.assistant_url = assistant_url.rstrip("/")
 
     async def execute(
         self,
@@ -144,7 +124,7 @@ class OrchestratorAgentExecutor(AgentExecutor):
                 status=TaskStatus(
                     state=TaskState.TASK_STATE_WORKING,
                     message=new_agent_text_message(
-                        "Discovering agents and routing request..."
+                        "Передаю запит асистенту (інструменти та зовнішні системи)..."
                     ),
                 ),
             )
@@ -185,38 +165,45 @@ class OrchestratorAgentExecutor(AgentExecutor):
         )
 
     async def _discover_all(self) -> str:
-        """Discover all registered agents and return their cards."""
-        lines = ["# Discovered A2A Agents\n"]
-        for url in self.agent_urls:
-            card = await discover_agent(url)
-            if card:
-                lines.append(f"## {card.get('name', 'Unknown')}")
-                lines.append(f"- **URL**: {url}")
-                lines.append(f"- **Description**: {card.get('description', 'N/A')}")
-                lines.append(f"- **Version**: {card.get('version', 'N/A')}")
-                skills = card.get("skills", [])
-                if skills:
-                    lines.append("- **Skills**:")
-                    for s in skills:
-                        lines.append(f"  - `{s.get('id')}`: {s.get('description', '')}")
-                lines.append("")
-            else:
-                lines.append(f"## Agent at {url}")
-                lines.append("- **Status**: UNREACHABLE\n")
+        """Показує Agent Card асистента — єдиного downstream A2A-агента з інструментами."""
+        lines = [
+            "# Оркестратор → Assistant Agent\n",
+            "Оркестратор приймає запити клієнта і через A2A делегує їх **Personal Assistant Agent**, "
+            "який викликає інструменти (KB, уроки, задачі).\n",
+        ]
+        url = self.assistant_url
+        card = await discover_agent(url)
+        if card:
+            lines.append(f"## {card.get('name', 'Assistant')}")
+            lines.append(f"- **URL**: {url}")
+            lines.append(f"- **Description**: {card.get('description', 'N/A')}")
+            lines.append(f"- **Version**: {card.get('version', 'N/A')}")
+            skills = card.get("skills", [])
+            if skills:
+                lines.append("- **Skills** (тут — доступ до зовнішніх систем):")
+                for s in skills:
+                    lines.append(f"  - `{s.get('id')}`: {s.get('description', '')}")
+            lines.append("")
+        else:
+            lines.append(f"## Assistant at {url}")
+            lines.append("- **Status**: UNREACHABLE\n")
         return "\n".join(lines)
 
     async def _delegate_task(self, user_text: str) -> str:
-        """Find the best matching agent and delegate the task."""
-        for url in self.agent_urls:
-            card = await discover_agent(url)
-            if card and match_skill(card, user_text):
-                agent_name = card.get("name", url)
-                result = await send_task_to_agent(url, user_text)
-                return (
-                    f"**Delegated to**: {agent_name}\n"
-                    f"**Result**:\n\n{result}"
-                )
-        return "Не знайдено жодного доступного агента для обробки запиту."
+        """Завжди делегує запит одному Personal Assistant Agent."""
+        url = self.assistant_url
+        card = await discover_agent(url)
+        if not card:
+            return (
+                f"Асистент недоступний за `{url}`. "
+                "Перевірте сервіс assistant-agent і змінну A2A_ASSISTANT_URL."
+            )
+        agent_name = card.get("name", url)
+        result = await send_task_to_agent(url, user_text)
+        return (
+            f"**Оркестратор звернувся до**: {agent_name}\n"
+            f"**Відповідь** (асистент обробив запит через інструменти / API):\n\n{result}"
+        )
 
     async def cancel(
         self, context: RequestContext, event_queue: EventQueue

@@ -1,7 +1,7 @@
 """A2A Orchestrator Agent server.
 
-Discovers other A2A agents via Well-Known URI and delegates tasks.
-Demonstrates agent-to-agent communication via A2A protocol.
+Єдина точка входу для клієнта: передає запити Personal Assistant Agent через A2A.
+Асистент (Lab3) викликає інструменти та зовнішні API — оркестратор їх не викликає.
 
 Usage:
     python -m orchestrator-agent
@@ -9,8 +9,10 @@ Usage:
     python src/orchestrator-agent/__main__.py
 
 Environment:
-    A2A_AGENT_URLS — comma-separated list of A2A agent base URLs
-                     (default: http://localhost:9000)
+    A2A_ASSISTANT_URL — базовий URL A2A Personal Assistant Agent
+                        (default: http://localhost:9000)
+    A2A_AGENT_URLS   — застаріле: якщо A2A_ASSISTANT_URL порожній, береться перший URL
+                        зі списку через кому
 """
 
 import os
@@ -23,6 +25,7 @@ from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
+    AgentInterface,
     AgentSkill,
 )
 
@@ -31,12 +34,28 @@ from agent_executor import OrchestratorAgentExecutor
 HOST = "0.0.0.0"
 PORT = 9001
 
-# Parse agent URLs from environment
-AGENT_URLS = [
-    u.strip()
-    for u in os.getenv("A2A_AGENT_URLS", "http://localhost:9000").split(",")
-    if u.strip()
-]
+
+def _resolve_assistant_url() -> str:
+    explicit = os.getenv("A2A_ASSISTANT_URL", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    legacy = os.getenv("A2A_AGENT_URLS", "http://localhost:9000").strip()
+    first = legacy.split(",")[0].strip()
+    return first.rstrip("/") if first else "http://localhost:9000"
+
+
+ASSISTANT_URL = _resolve_assistant_url()
+
+
+def _agent_card_url() -> str:
+    """Публічний URL оркестратора в Agent Card. У K8s задайте A2A_PUBLIC_BASE_URL."""
+    base = os.getenv("A2A_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if base:
+        return f"{base}/"
+    return f"http://localhost:{PORT}/"
+
+
+_ORCH_ENDPOINT = _agent_card_url()
 
 # ---------------------------------------------------------------------------
 # Agent Skills
@@ -46,14 +65,14 @@ skill_orchestration = AgentSkill(
     id="orchestration",
     name="Agent Orchestration",
     description=(
-        "Discover available A2A agents, inspect their capabilities, "
-        "and delegate tasks to the best matching agent."
+        "Приймає запити клієнта і через A2A передає їх Personal Assistant Agent; "
+        "асистент викликає інструменти (KB, уроки, задачі) для зовнішніх систем."
     ),
-    tags=["orchestration", "delegation", "routing", "multi-agent"],
+    tags=["orchestration", "delegation", "assistant", "a2a"],
     examples=[
-        "Discover available agents",
-        "List agents",
-        "Покажи список документів (delegates to assistant)",
+        "discover — показати Agent Card асистента",
+        "Покажи список документів (через асистента)",
+        "help",
     ],
 )
 
@@ -64,11 +83,15 @@ skill_orchestration = AgentSkill(
 public_agent_card = AgentCard(
     name="Orchestrator Agent",
     description=(
-        "A2A Orchestrator — discovers other agents via Well-Known URI "
-        "and delegates tasks based on skill matching. "
-        "Demonstrates agent-to-agent communication."
+        "A2A-оркестратор: точка входу для клієнта. Усі завдання передаються "
+        "Personal Assistant Agent по протоколу A2A; асистент працює з інструментами "
+        "та зовнішніми системами (Knowledge Base, Lesson Credits, Task Manager)."
     ),
-    url=f"http://localhost:{PORT}/",
+    url=_ORCH_ENDPOINT,
+    preferred_transport="JSONRPC",
+    additional_interfaces=[
+        AgentInterface(transport="JSONRPC", url=_ORCH_ENDPOINT),
+    ],
     version="1.0.0",
     default_input_modes=["text"],
     default_output_modes=["text"],
@@ -86,7 +109,7 @@ public_agent_card = AgentCard(
 
 def main():
     request_handler = DefaultRequestHandler(
-        agent_executor=OrchestratorAgentExecutor(agent_urls=AGENT_URLS),
+        agent_executor=OrchestratorAgentExecutor(assistant_url=ASSISTANT_URL),
         task_store=InMemoryTaskStore(),
     )
 
@@ -97,7 +120,7 @@ def main():
 
     print(f"Starting Orchestrator A2A Agent on {HOST}:{PORT}")
     print(f"Agent Card: http://{HOST}:{PORT}/.well-known/agent-card.json")
-    print(f"Target agents: {AGENT_URLS}")
+    print(f"Assistant (delegation target): {ASSISTANT_URL}")
 
     uvicorn.run(app.build(), host=HOST, port=PORT)
 
