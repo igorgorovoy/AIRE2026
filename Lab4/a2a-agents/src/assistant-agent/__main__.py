@@ -9,6 +9,10 @@ Usage:
     python -m assistant-agent
     # or
     python src/assistant-agent/__main__.py
+
+Environment:
+    A2A_ASSISTANT_PORT — порт uvicorn (за замовч. 14000)
+    A2A_PUBLIC_BASE_URL — URL у Agent Card для клієнтів (у K8s / compose)
 """
 
 import os
@@ -28,7 +32,7 @@ from a2a.types import (
 from agent_executor import AssistantAgentExecutor
 
 HOST = "0.0.0.0"
-PORT = 9000
+PORT = int(os.getenv("A2A_ASSISTANT_PORT", "14000"))
 
 
 def _agent_card_url() -> str:

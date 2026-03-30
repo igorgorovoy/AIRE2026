@@ -10,7 +10,7 @@ Usage:
 
 Environment:
     A2A_ASSISTANT_URL — базовий URL A2A Personal Assistant Agent
-                        (default: http://localhost:9000)
+                        (default: http://localhost:14000)
     A2A_AGENT_URLS   — застаріле: якщо A2A_ASSISTANT_URL порожній, береться перший URL
                         зі списку через кому
 """
@@ -32,16 +32,16 @@ from a2a.types import (
 from agent_executor import OrchestratorAgentExecutor
 
 HOST = "0.0.0.0"
-PORT = 9001
+PORT = int(os.getenv("A2A_ORCHESTRATOR_PORT", "14001"))
 
 
 def _resolve_assistant_url() -> str:
     explicit = os.getenv("A2A_ASSISTANT_URL", "").strip()
     if explicit:
         return explicit.rstrip("/")
-    legacy = os.getenv("A2A_AGENT_URLS", "http://localhost:9000").strip()
+    legacy = os.getenv("A2A_AGENT_URLS", "http://localhost:14000").strip()
     first = legacy.split(",")[0].strip()
-    return first.rstrip("/") if first else "http://localhost:9000"
+    return first.rstrip("/") if first else "http://localhost:14000"
 
 
 ASSISTANT_URL = _resolve_assistant_url()

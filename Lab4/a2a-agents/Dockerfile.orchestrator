@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/orchestrator-agent/ .
 
-EXPOSE 9001
+EXPOSE 14001
 
 CMD ["python", "__main__.py"]

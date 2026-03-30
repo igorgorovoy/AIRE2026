@@ -1,15 +1,18 @@
 version: "3.8"
 
+# Порти агентів у діапазоні 14xxx (асистент 14000, оркестратор 14001).
 services:
   assistant-agent:
     build:
       context: .
       dockerfile: Dockerfile.assistant
     ports:
-      - "9000:9000"
+      - "14000:14000"
     environment:
       - KB_API_BASE_URL=${KB_API_BASE_URL:-http://host.docker.internal:8000}
       - KB_API_KEY=${KB_API_KEY:-}
+      - A2A_ASSISTANT_PORT=14000
+      - A2A_PUBLIC_BASE_URL=http://127.0.0.1:14000
     restart: unless-stopped
 
   orchestrator-agent:
@@ -17,9 +20,11 @@ services:
       context: .
       dockerfile: Dockerfile.orchestrator
     ports:
-      - "9001:9001"
+      - "14001:14001"
     environment:
-      - A2A_ASSISTANT_URL=http://assistant-agent:9000
+      - A2A_ORCHESTRATOR_PORT=14001
+      - A2A_ASSISTANT_URL=http://assistant-agent:14000
+      - A2A_PUBLIC_BASE_URL=http://127.0.0.1:14001
     depends_on:
       - assistant-agent
     restart: unless-stopped

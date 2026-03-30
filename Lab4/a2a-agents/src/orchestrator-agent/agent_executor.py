@@ -1,7 +1,7 @@
 """A2A Orchestrator Agent — єдина точка входу для клієнта.
 
 Оркестратор не викликає MCP напряму: він передає запити Personal Assistant Agent
-(Lab3 / A2A на порту 9000), а той уже маршрутизує до інструментів і зовнішніх систем
+(Lab3 / A2A на порту 14000), а той уже маршрутизує до інструментів і зовнішніх систем
 (Knowledge Base, Lesson Credits, Task Manager).
 
 Демонструє ланцюг: клієнт → A2A оркестратор → A2A асистент → tools / HTTP API.
@@ -105,7 +105,7 @@ async def send_task_to_agent(base_url: str, user_text: str) -> str:
 class OrchestratorAgentExecutor(AgentExecutor):
     """Оркестратор: усі користувацькі завдання передає одному A2A Assistant Agent."""
 
-    def __init__(self, assistant_url: str = "http://localhost:9000"):
+    def __init__(self, assistant_url: str = "http://localhost:14000"):
         self.assistant_url = assistant_url.rstrip("/")
 
     async def execute(

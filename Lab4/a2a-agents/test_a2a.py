@@ -23,9 +23,10 @@ import sys
 
 import httpx
 
-# Дозволити перевизначення з env (K8s port-forward, інший хост)
-ASSISTANT_URL = os.getenv("A2A_TEST_ASSISTANT_URL", "http://127.0.0.1:9000").rstrip("/")
-ORCHESTRATOR_URL = os.getenv("A2A_TEST_ORCHESTRATOR_URL", "http://127.0.0.1:9001").rstrip(
+# За замовч. 14000/14001 — порти агентів (compose / локальний запуск).
+# K8s: kubectl port-forward svc/a2a-assistant-agent -n a2a 14000:14000 → той самий дефолт
+ASSISTANT_URL = os.getenv("A2A_TEST_ASSISTANT_URL", "http://127.0.0.1:14000").rstrip("/")
+ORCHESTRATOR_URL = os.getenv("A2A_TEST_ORCHESTRATOR_URL", "http://127.0.0.1:14001").rstrip(
     "/"
 )
 
@@ -51,10 +52,16 @@ def fetch_agent_card(base_url: str) -> dict:
             f"Content-Type={resp.headers.get('content-type')!r}, "
             f"тіло (до 400 симв.): {resp.text[:400]!r}"
         )
-        print(
-            "Підказка: переконайтесь, що агенти запущені (docker compose / python __main__.py); "
-            "перевірте порт: lsof -i :9000 ; якщо був HTTP_PROXY — скрипт використовує trust_env=False."
-        )
+        if "InvalidBucketName" in resp.text or "MinIO" in resp.text:
+            print(
+                "Схоже на MinIO (або інший S3 API) на цьому порту. "
+                "Агенти Lab4 слухають 14000/14001; перевірте A2A_TEST_*_URL і що на порту саме A2A."
+            )
+        else:
+            print(
+                "Підказка: агенти запущені? docker compose up; для K8s — port-forward і A2A_TEST_*_URL. "
+                "Перевірка: lsof -i :14000 ; HTTP_PROXY у скрипті вимкнено (trust_env=False)."
+            )
         resp.raise_for_status()
     if not (resp.content or b"").strip():
         print(

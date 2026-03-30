@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/assistant-agent/ .
 
-EXPOSE 9000
+EXPOSE 14000
 
 CMD ["python", "__main__.py"]
