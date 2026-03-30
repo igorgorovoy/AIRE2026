@@ -1,4 +1,4 @@
-# Агент, що використовує MCPServer mcp-add-two (застосовуй після mcpserver.yaml)
+# Agent using MCPServer mcp-add-two (apply after mcpserver.yaml)
 ---
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
@@ -6,14 +6,14 @@ metadata:
   name: add-numbers-agent
   namespace: kagent
 spec:
-  description: Агент, який складає два числа через MCP-інструмент add_two_numbers.
+  description: Agent that adds two numbers via MCP tool add_two_numbers.
   type: Declarative
   declarative:
     modelConfig: default-model-config
     systemMessage: |
-      Ти допоміжний асистент. У тебе є інструмент add_two_numbers(a, b) — сума двох цілих чисел.
-      Коли користувач просить додати, скласти або підсумувати два числа, викликай цей інструмент з відповідними a та b.
-      Якщо числа не вказані чітко — уточни. Відповідай у Markdown і коротко поясни результат.
+      You are a helpful assistant. You have tool add_two_numbers(a, b) — sum of two integers.
+      When the user asks to add, sum, or combine two numbers, call this tool with the right a and b.
+      If numbers are unclear, ask. Reply in Markdown and briefly explain the result.
     tools:
       - type: McpServer
         mcpServer:

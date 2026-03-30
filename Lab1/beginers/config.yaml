@@ -1,8 +1,8 @@
-# Lab1 beginners: agentgateway з кількома LLM провайдерами
-# Провайдер обирається через заголовок x-provider (gemini | anthropic | openai)
-# За замовчуванням — gemini-2.5-flash
-# Документація: https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/
-# API ключі:
+# Lab1 beginners: agentgateway with multiple LLM providers
+# Provider is selected via x-provider header (gemini | anthropic | openai)
+# Default: gemini-2.5-flash
+# Docs: https://agentgateway.dev/docs/standalone/latest/tutorials/llm-gateway/
+# API keys:
 #   Gemini:    https://aistudio.google.com/api-keys
 #   Anthropic: https://console.anthropic.com/settings/keys
 #   OpenAI:    https://platform.openai.com/api-keys
@@ -57,7 +57,7 @@ binds:
               backendAuth:
                 key: "$OPENAI_API_KEY"
 
-          # --- Gemini (за замовчуванням) ---
+          # --- Gemini (default) ---
           - name: gemini
             backends:
               - ai:

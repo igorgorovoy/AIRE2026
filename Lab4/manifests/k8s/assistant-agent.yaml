@@ -1,0 +1,74 @@
+# A2A Personal Assistant Agent — Kubernetes deployment
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a2a-assistant-agent
+  namespace: a2a
+  labels:
+    app: a2a-assistant-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: a2a-assistant-agent
+  template:
+    metadata:
+      labels:
+        app: a2a-assistant-agent
+    spec:
+      containers:
+        - name: assistant-agent
+          image: a2a-assistant-agent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 14000
+              protocol: TCP
+          env:
+            - name: A2A_ASSISTANT_PORT
+              value: "14000"
+            - name: A2A_PUBLIC_BASE_URL
+              value: "http://a2a-assistant-agent.a2a.svc.cluster.local:14000"
+            - name: KB_API_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: a2a-assistant-secrets
+                  key: KB_API_BASE_URL
+                  optional: true
+            - name: KB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: a2a-assistant-secrets
+                  key: KB_API_KEY
+                  optional: true
+            # Lab3 lesson/tasks MCP (optional): image defaults under /opt/lab3-runtime.
+            # Mount PVC or hostPath with agents/, core/, scripts/ at /opt/lab3-runtime and add pip deps.
+            # To disable: set MCP_LESSON_CREDITS_SCRIPT and MCP_TASKS_SCRIPT to "" via ConfigMap/Env.
+          readinessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: 14000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /.well-known/agent-card.json
+              port: 14000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: a2a-assistant-agent
+  namespace: a2a
+  labels:
+    app: a2a-assistant-agent
+spec:
+  selector:
+    app: a2a-assistant-agent
+  ports:
+    - port: 14000
+      targetPort: 14000
+      protocol: TCP
+  type: ClusterIP

@@ -1,0 +1,15 @@
+# Optional overlay: mount Lab3 runtime deps (agents, core, scripts) into the assistant image.
+#
+#   export LAB3_AGENTIC_ROOT=/path/to/agentic-ai-landing-zone   # project with agents/, core/, scripts/
+#   docker compose -f docker-compose.yaml -f docker-compose.lab3-mcp.yaml up --build
+#
+# The image already contains Lab3/mcp-servers lesson + tasks server.py under /opt/lab3-runtime.
+# You still need Python deps for agents/ (e.g. langgraph) in the image — extend the Dockerfile
+# with pip install -r from that project, or use a custom image FROM a2a-assistant-agent.
+
+services:
+  assistant-agent:
+    volumes:
+      - ${LAB3_AGENTIC_ROOT}/agents:/opt/lab3-runtime/agents:ro
+      - ${LAB3_AGENTIC_ROOT}/core:/opt/lab3-runtime/core:ro
+      - ${LAB3_AGENTIC_ROOT}/scripts:/opt/lab3-runtime/scripts:ro

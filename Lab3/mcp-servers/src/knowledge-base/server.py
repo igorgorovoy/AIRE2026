@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""MCP Server для Knowledge Base — граф документів Obsidian vault.
+"""MCP server for Knowledge Base — Obsidian vault document graph.
 
-Потребує запущений backend (viz/backend) на порту 8000.
+Requires a running backend (viz/backend) on port 8000.
 Tools: kb_graph_get, kb_get_document, kb_list_documents, kb_graph_rebuild.
 
-Запуск з кореня проєкту:
+Run from project root:
   python mcp-servers-knowledge-base/server.py
   uv run mcp-servers-knowledge-base/server.py
 
 ENV:
-  KB_API_BASE_URL — базовий URL API (default http://localhost:8000)
-  API_KEY — API key для X-API-Key header (якщо backend вимагає)
-  TASKS_ENV_FILE — завантажити окремий .env (напр. .env.mcp)
+  KB_API_BASE_URL — API base URL (default http://localhost:8000)
+  API_KEY — API key for X-API-Key header (if backend requires it)
+  TASKS_ENV_FILE — load an alternate .env (e.g. .env.mcp)
 """
 
 import os
@@ -37,7 +37,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     "knowledge-base",
-    instructions="MCP сервер для роботи з knowledge base (Obsidian vault graph). Tools: kb_graph_get, kb_get_document, kb_list_documents, kb_graph_rebuild. Backend має бути запущений (uvicorn main:app --port 8000).",
+    instructions="MCP server for the knowledge base (Obsidian vault graph). Tools: kb_graph_get, kb_get_document, kb_list_documents, kb_graph_rebuild. Backend must be running (uvicorn main:app --port 8000).",
 )
 
 API_BASE = os.getenv("KB_API_BASE_URL", "http://localhost:8000").rstrip("/")
@@ -60,12 +60,12 @@ def _get(url: str) -> dict | str:
             import json
             return json.loads(resp.read().decode())
     except Exception as e:
-        return f"Помилка запиту: {e}"
+        return f"Request error: {e}"
 
 
 @mcp.tool()
 def kb_graph_get(limit: int = 500, force: bool = False) -> str:
-    """Отримати граф документів (nodes, edges) з knowledge base. limit — макс. документів, force — перебудувати індекс."""
+    """Get document graph (nodes, edges) from the knowledge base. limit — max documents; force — rebuild index."""
     url = f"{API_BASE}/api/kb-graph?limit={limit}&force={'true' if force else 'false'}"
     result = _get(url)
     if isinstance(result, str):
@@ -77,38 +77,38 @@ def kb_graph_get(limit: int = 500, force: bool = False) -> str:
 
 @mcp.tool()
 def kb_get_document(path: str) -> str:
-    """Отримати вміст документа за шляхом (відносно vault). Напр. '46 AWS/AWS Skill Builder.md'."""
+    """Get document content by vault-relative path. E.g. '46 AWS/AWS Skill Builder.md'."""
     encoded = quote(path, safe="/")
     url = f"{API_BASE}/api/kb-graph/doc/{encoded}"
     result = _get(url)
     if isinstance(result, str):
         return result
     content = result.get("content", "")
-    return content or "(порожній документ)"
+    return content or "(empty document)"
 
 
 @mcp.tool()
 def kb_list_documents() -> str:
-    """Список документів з датами зміни (mtimes) — для сортування та пошуку."""
+    """List documents with modification times (mtimes) for sorting and search."""
     url = f"{API_BASE}/api/kb-graph/mtimes"
     result = _get(url)
     if isinstance(result, str):
         return result
     mtimes = result.get("mtimes", {})
     lines = [f"- {p} | {v}" for p, v in sorted(mtimes.items(), key=lambda x: -x[1])[:50]]
-    return "\n".join(lines) if lines else "Немає документів"
+    return "\n".join(lines) if lines else "No documents"
 
 
 @mcp.tool()
 def kb_graph_rebuild() -> str:
-    """Перебудувати індекс knowledge base з нуля. Може зайняти час на великих vault."""
+    """Rebuild the knowledge base index from scratch. Can take time on large vaults."""
     url = f"{API_BASE}/api/kb-graph?force=true"
     result = _get(url)
     if isinstance(result, str):
         return result
     nodes = result.get("nodes", [])
     edges = result.get("edges", [])
-    return f"Індекс перебудовано. Nodes: {len(nodes)}, Edges: {len(edges)}"
+    return f"Index rebuilt. Nodes: {len(nodes)}, Edges: {len(edges)}"
 
 
 def _put(url: str, body: dict) -> dict | str:
@@ -121,19 +121,19 @@ def _put(url: str, body: dict) -> dict | str:
         with urllib.request.urlopen(req, timeout=60) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
-        return f"Помилка запиту: {e}"
+        return f"Request error: {e}"
 
 
 @mcp.tool()
 def kb_edit_document(path: str, content: str) -> str:
-    """Зберегти вміст документа за шляхом (відносно vault). Дозволяє редагувати існуючі та створювати нові .md файли."""
+    """Save document content by vault-relative path. Edits existing or creates new .md files."""
     encoded = quote(path, safe="/")
     url = f"{API_BASE}/api/kb-graph/doc/{encoded}"
     result = _put(url, {"content": content})
     if isinstance(result, str):
         return result
     if result.get("ok"):
-        return "Збережено"
+        return "Saved"
     return str(result)
 
 

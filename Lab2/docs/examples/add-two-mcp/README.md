@@ -1,20 +1,20 @@
-# MCP-сервер «додати два числа» (лабораторна kagent)
+# MCP server “add two numbers” (kagent lab)
 
-- `server.py` — [FastMCP](https://github.com/jlowin/fastmcp) з одним інструментом `add_two_numbers`.
-- `Dockerfile` — образ для `MCPServer` у кластері.
-- `k8s.yaml` — симлінк на канонічні маніфести: [`manifests/kagent/add-two-mcp/all-in-one.yaml`](../../../manifests/kagent/add-two-mcp/all-in-one.yaml).
+- `server.py` — [FastMCP](https://github.com/jlowin/fastmcp) with tool `add_two_numbers`.
+- `Dockerfile` — image for `MCPServer` in the cluster.
+- `k8s.yaml` — symlink to canonical manifests: [`manifests/kagent/add-two-mcp/all-in-one.yaml`](../../../manifests/kagent/add-two-mcp/all-in-one.yaml).
 
-## Збірка образу
+## Build image
 
-З **кореня Lab2**:
+From **Lab2 root**:
 
 ```bash
 docker build -t add-two-mcp:latest docs/examples/add-two-mcp
 ```
 
-### Rancher Desktop: образ без registry
+### Rancher Desktop: no registry
 
-Якщо под `mcp-add-two` у `ImagePullBackOff` (kubelet не бачить локальний образ), імпортуй tar у Docker daemon VM:
+If pod `mcp-add-two` is `ImagePullBackOff` (kubelet does not see local image), import tar into the VM Docker daemon:
 
 ```bash
 docker save add-two-mcp:latest -o "$HOME/add-two-mcp.tar"
@@ -23,19 +23,19 @@ kubectl delete pod -n kagent -l app.kubernetes.io/name=mcp-add-two
 kubectl get pods -n kagent | grep mcp-add-two
 ```
 
-Детальніше: [`manifests/kagent/add-two-mcp/README.md`](../../../manifests/kagent/add-two-mcp/README.md) (розділ Rancher Desktop).
+More: [`manifests/kagent/add-two-mcp/README.md`](../../../manifests/kagent/add-two-mcp/README.md) (Rancher Desktop section).
 
-## Деплой маніфестів
+## Deploy manifests
 
-Повна інструкція (передумови, `kubectl apply`, перевірка, UI, видалення):
+Full steps (prerequisites, `kubectl apply`, verify, UI, teardown):
 
 **[`manifests/kagent/add-two-mcp/README.md`](../../../manifests/kagent/add-two-mcp/README.md)**
 
-Коротко з кореня Lab2:
+Short version from Lab2 root:
 
 ```bash
 kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
-# або: kubectl apply -k manifests/kagent/add-two-mcp
+# or: kubectl apply -k manifests/kagent/add-two-mcp
 ```
 
-На **Rancher Desktop** образ зазвичай доступний Kubernetes без додаткового `docker push`. Якщо под не стартує через образ — див. розділ «Rancher Desktop» у README маніфестів.
+On **Rancher Desktop** the image is usually visible to Kubernetes without `docker push`. If the pod fails on image, see the Rancher Desktop section in the manifests README.

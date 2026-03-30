@@ -1,7 +1,7 @@
-# Gateway API: Gateway + HTTPRoutes для agentgateway в Kubernetes
-# Документація: https://agentgateway.dev/docs/kubernetes/latest/quickstart/install
+# Gateway API: Gateway + HTTPRoutes for agentgateway on Kubernetes
+# Docs: https://agentgateway.dev/docs/kubernetes/latest/quickstart/install
 ---
-# Gateway — точка входу для трафіку
+# Gateway — traffic entry point
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -19,8 +19,8 @@ spec:
         namespaces:
           from: All
 ---
-# AgentgatewayBackend: Gemini (за замовчуванням)
-# Secret gemini-secret повинен мати ключ Authorization: <GEMINI_API_KEY>
+# AgentgatewayBackend: Gemini (default)
+# Secret gemini-secret must contain key Authorization: <GEMINI_API_KEY>
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -39,7 +39,7 @@ spec:
         name: gemini-secret
 ---
 # AgentgatewayBackend: Anthropic
-# Secret anthropic-secret повинен мати ключ Authorization: <ANTHROPIC_API_KEY>
+# Secret anthropic-secret must contain key Authorization: <ANTHROPIC_API_KEY>
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -58,7 +58,7 @@ spec:
         name: anthropic-secret
 ---
 # AgentgatewayBackend: OpenAI
-# Secret openai-secret повинен мати ключ Authorization: <OPENAI_API_KEY>
+# Secret openai-secret must contain key Authorization: <OPENAI_API_KEY>
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
@@ -76,7 +76,7 @@ spec:
       secretRef:
         name: openai-secret
 ---
-# HTTPRoute: маршрутизація за заголовком x-provider
+# HTTPRoute: route by x-provider header
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -89,7 +89,7 @@ spec:
     - name: agentgateway-proxy
       namespace: agentgateway-system
   rules:
-    # Anthropic — за заголовком x-provider: anthropic
+    # Anthropic — header x-provider: anthropic
     - matches:
         - headers:
             - name: x-provider
@@ -99,7 +99,7 @@ spec:
           namespace: agentgateway-system
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # OpenAI — за заголовком x-provider: openai
+    # OpenAI — header x-provider: openai
     - matches:
         - headers:
             - name: x-provider
@@ -109,7 +109,7 @@ spec:
           namespace: agentgateway-system
           group: agentgateway.dev
           kind: AgentgatewayBackend
-    # Gemini — маршрут за замовчуванням
+    # Gemini — default route
     - backendRefs:
         - name: gemini
           namespace: agentgateway-system

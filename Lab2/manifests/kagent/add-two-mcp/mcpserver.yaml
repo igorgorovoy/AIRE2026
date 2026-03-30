@@ -1,4 +1,4 @@
-# MCP-сервер з інструментом add_two_numbers (образ збирається з docs/examples/add-two-mcp/)
+# MCP server with add_two_numbers tool (image built from docs/examples/add-two-mcp/)
 ---
 apiVersion: kagent.dev/v1alpha1
 kind: MCPServer
@@ -8,7 +8,7 @@ metadata:
 spec:
   deployment:
     image: add-two-mcp:latest
-    # Без цього для тега :latest діє policy Always → pull з Docker Hub і ImagePullBackOff.
+    # Without this, :latest uses pull policy Always → Docker Hub pull and ImagePullBackOff.
     imagePullPolicy: IfNotPresent
     port: 3000
     cmd: python

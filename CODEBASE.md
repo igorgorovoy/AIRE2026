@@ -1,41 +1,41 @@
 # CODEBASE.md — AI Review Context
 
-> Цей файл надає AI-рев'юверу контекст про репозиторій AIRE2026.
-> Оновлюй при додаванні нових компонентів або зміні архітектури.
+> Gives the AI reviewer context for the AIRE2026 repository.
+> Update when adding components or changing architecture.
 
-## Мета проекту
+## Project goal
 
-**AIRE2026** — навчальний репозиторій курсу AI & Reliability Engineering 2026.
-Демонструє побудову AI-агентів та LLM-gateway на базі [agentgateway](https://agentgateway.dev) та [kagent](https://kagent.dev).
+**AIRE2026** is the course repo for AI & Reliability Engineering 2026.
+It demonstrates AI agents and an LLM gateway using [agentgateway](https://agentgateway.dev) and [kagent](https://kagent.dev) on Kubernetes.
 
-## Структура
+## Layout
 
 ```
 AIRE2026/
 ├── Lab1/
-│   ├── beginers/          # Standalone: agentgateway бінар + config.yaml
-│   │   ├── run.sh         # Bash: інсталяція + запуск
-│   │   └── config.yaml    # agentgateway конфіг (YAML)
+│   ├── beginers/          # Standalone: agentgateway binary + config.yaml
+│   │   ├── run.sh         # Bash: install + run
+│   │   └── config.yaml    # agentgateway config (YAML)
 │   ├── medium/            # Kubernetes: Helm + kagent
 │   │   ├── run.sh         # Bash: Helm install + kubectl apply
 │   │   ├── k8s/
-│   │   │   ├── agentgateway/  # Gateway, Backends, HTTPRoute маніфести
-│   │   │   ├── kagent/        # ModelConfig, Agent маніфести
+│   │   │   ├── agentgateway/  # Gateway, Backends, HTTPRoute manifests
+│   │   │   ├── kagent/        # ModelConfig, Agent manifests
 │   │   │   └── ingress.yaml   # Traefik Ingress
-│   │   └── screenshots/   # Документаційні скріншоти
-│   └── max/               # Advanced (в розробці)
+│   │   └── screenshots/   # Documentation screenshots
+│   └── max/               # Advanced (WIP)
 ├── .github/
 │   ├── workflows/         # GitHub Actions
-│   └── scripts/           # Python-скрипти для workflows
-├── CODEBASE.md            # Цей файл
-├── REVIEW.md              # AI-рев'ю критерії
-└── EVALS.md               # Методологія оцінки рев'ю
+│   └── scripts/           # Python scripts for workflows
+├── CODEBASE.md            # This file
+├── REVIEW.md              # AI review criteria
+└── EVALS.md               # Review evaluation methodology
 ```
 
-## Технологічний стек
+## Tech stack
 
-| Компонент | Технологія | Версія |
-|-----------|------------|--------|
+| Component | Technology | Version |
+|-----------|------------|---------|
 | LLM Gateway | agentgateway | v1.0.0-rc.2 (standalone), v2.2.1 (k8s) |
 | AI Agents | kagent | v0.7.23 |
 | Kubernetes | k3s (Rancher Desktop) | v1.x |
@@ -44,60 +44,60 @@ AIRE2026/
 | CI/CD | GitHub Actions | — |
 | AI Review | GitHub Models | gpt-4o-mini |
 
-## Ключові файли та їх призначення
+## Key files
 
 ### `Lab1/beginers/config.yaml`
-- YAML конфіг для agentgateway standalone
-- Визначає `binds`, `listeners`, `routes`, `backends`, `policies`
-- Підтримує змінні середовища через `$VAR_NAME` синтаксис
-- Схема: `https://agentgateway.dev/schema/config`
+- Standalone agentgateway YAML config
+- Defines `binds`, `listeners`, `routes`, `backends`, `policies`
+- Env vars via `$VAR_NAME`
+- Schema: `https://agentgateway.dev/schema/config`
 
 ### `Lab1/beginers/run.sh`
-- Bash-скрипт з `set -e` (fail-fast)
-- Завантажує бінар agentgateway з GitHub Releases
-- Перевіряє наявність API ключів перед запуском
-- Підтримує darwin/linux, arm64/amd64
+- Bash with `set -e` (fail-fast)
+- Downloads agentgateway binary from GitHub Releases
+- Checks API keys before start
+- Supports darwin/linux, arm64/amd64
 
 ### `Lab1/medium/run.sh`
-- Bash-скрипт з `set -euo pipefail` (суворий режим)
-- Встановлює Gateway API CRDs, agentgateway (Helm), kagent (Helm)
-- `kapply()` функція з `--validate=false` для роботи з нестабільним API-сервером
-- Явно вимикає всі demo-агенти kagent (запобігає OOMKill на k3s single-node)
+- Bash with `set -euo pipefail`
+- Installs Gateway API CRDs, agentgateway (Helm), kagent (Helm)
+- `kapply()` uses `--validate=false` for unstable API server behavior
+- Disables all kagent demo agents (avoids OOMKill on single-node k3s)
 
 ### `Lab1/medium/k8s/agentgateway/gateway.yaml`
-- `Gateway`, `AgentgatewayBackend`, `HTTPRoute` ресурси
+- `Gateway`, `AgentgatewayBackend`, `HTTPRoute`
 - Gateway API v1 (`gateway.networking.k8s.io/v1`)
 
 ### `Lab1/medium/k8s/kagent/`
 - `kagent-model.yaml`: `ModelConfig` (kagent.dev/v1alpha2)
-- `kagent-agent.yaml`: `Agent` (kagent.dev/v1alpha2) з `type: Declarative`
+- `kagent-agent.yaml`: `Agent` (kagent.dev/v1alpha2), `type: Declarative`
 
-## Конвенції та стандарти
+## Conventions
 
-### Bash скрипти
-- Завжди `set -euo pipefail` або мінімум `set -e`
-- Кольорові повідомлення через ANSI escape: `info()`, `warn()`, `error()`, `step()`
-- Перевірка залежностей на початку скрипту
-- Ніяких hardcoded секретів — тільки `${VAR:-}` з env
-- Ідемпотентність: `--dry-run=client | apply` замість create
+### Bash
+- Prefer `set -euo pipefail` or at least `set -e`
+- Colored helpers: `info()`, `warn()`, `error()`, `step()`
+- Check dependencies at script start
+- No hardcoded secrets — only `${VAR:-}` from env
+- Idempotency: `--dry-run=client | apply` instead of create
 
-### Kubernetes маніфести
-- `apiVersion` відповідно до встановлених CRDs
-- Namespace явно вказано у кожному ресурсі
+### Kubernetes manifests
+- `apiVersion` matches installed CRDs
+- Namespace explicit on every resource
 - Labels: `app.kubernetes.io/name`, `app.kubernetes.io/component`
 
 ### Secrets
-- `.env` у `.gitignore`
-- Ніяких API ключів у коді або маніфестах
-- У k8s: `kubectl create secret --from-literal` з env-змінних
+- `.env` in `.gitignore`
+- No API keys in code or committed manifests
+- In cluster: `kubectl create secret --from-literal` from env
 
-### Документація
-- README.md у кожному lab-директорії
-- Screenshots у `screenshots/` з описовими іменами
+### Documentation
+- README per lab directory
+- Screenshots in `screenshots/` with descriptive names
 
-## Відомі обмеження середовища
+## Known environment limits
 
-- **k3s single-node**: SQLite backend (kine) не витримує >5 одночасних Helm інсталяцій
-- **Rancher Desktop Lima VM**: обмежена пам'ять, OOMKill при запуску kagent demo-профілю
-- **agentgateway k8s UI**: відсутній (тільки в standalone)
-- **Traefik CRD конфлікт**: Gateway API CRDs потребують Helm ownership анотацій
+- **k3s single-node:** SQLite backend (kine) struggles with >5 concurrent heavy Helm installs
+- **Rancher Desktop Lima VM:** limited RAM; kagent demo profile can OOM
+- **agentgateway k8s UI:** not available (standalone only)
+- **Traefik CRD overlap:** Gateway API CRDs may need Helm ownership annotations

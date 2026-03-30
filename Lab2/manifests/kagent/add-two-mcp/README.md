@@ -1,28 +1,28 @@
-# Деплой MCP «скласти два числа» + агент `add-numbers-agent`
+# Deploy MCP “add two numbers” + agent `add-numbers-agent`
 
-Маніфести для **kagent**: `MCPServer` + `Agent`. Код Docker-образа: [`../../docs/examples/add-two-mcp/`](../../docs/examples/add-two-mcp/).
+**kagent** manifests: `MCPServer` + `Agent`. Docker image source: [`../../docs/examples/add-two-mcp/`](../../docs/examples/add-two-mcp/).
 
-| Файл | Опис |
-|------|------|
-| `mcpserver.yaml` | Лише `MCPServer` `mcp-add-two` |
-| `agent.yaml` | Лише `Agent` `add-numbers-agent` |
-| `kustomization.yaml` | Kustomize: застосувати обидва ресурси |
-| `all-in-one.yaml` | Обидва ресурси в одному файлі |
+| File | Description |
+|------|-------------|
+| `mcpserver.yaml` | `MCPServer` `mcp-add-two` only |
+| `agent.yaml` | `Agent` `add-numbers-agent` only |
+| `kustomization.yaml` | Kustomize: apply both resources |
+| `all-in-one.yaml` | Both resources in one file |
 
-## Передумови
+## Prerequisites
 
-1. Кластер уже має **kagent** (namespace `kagent`, CRD `mcpservers`, `agents`).
-2. Є **ModelConfig** (типово `default-model-config`):
+1. Cluster has **kagent** (namespace `kagent`, CRDs `mcpservers`, `agents`).
+2. **ModelConfig** (usually `default-model-config`):
 
    ```bash
    kubectl get modelconfigs -n kagent
    ```
 
-3. Налаштовано **Secret** з `OPENAI_API_KEY` для провайдера (див. [`LAB2.md`](../../LAB2.md), розділ про модель / OpenAI).
+3. **Secret** with `OPENAI_API_KEY` for the provider (see [`LAB2.md`](../../LAB2.md), model / OpenAI section).
 
-## 1. Зібрати Docker-образ
+## 1. Build Docker image
 
-З **кореня репозиторію Lab2** (де лежать `manifests/` і `docs/`):
+From **Lab2 repo root** (where `manifests/` and `docs/` live):
 
 ```bash
 docker build -t add-two-mcp:latest docs/examples/add-two-mcp
@@ -30,17 +30,17 @@ docker build -t add-two-mcp:latest docs/examples/add-two-mcp
 
 ### Rancher Desktop
 
-Зазвичай образ, зібраний через **Docker / `docker build`**, доступний Kubernetes того ж Rancher Desktop (спільний image store). Якщо под у стані `ImagePullBackOff` / `ErrImageNeverPull`:
+Images from **`docker build`** usually share the same store as Kubernetes on Rancher Desktop. If the pod is `ImagePullBackOff` / `ErrImageNeverPull`:
 
-- У **Rancher Desktop → Kubernetes** увімкни використання той самий container runtime, що й Docker (або завантаж образ у registry, доступний кластеру).
-- Альтернатива: запушити образ у GHCR/Docker Hub і в `mcpserver.yaml` замінити `image: add-two-mcp:latest` на повний шлях, напр. `ghcr.io/<user>/add-two-mcp:latest`.
+- In **Rancher Desktop → Kubernetes**, use the same container runtime as Docker (or push to a registry the cluster can pull).
+- Or push to GHCR/Docker Hub and set `image:` in `mcpserver.yaml` to e.g. `ghcr.io/<user>/add-two-mcp:latest`.
 
-#### Без Docker registry (імпорт у VM Rancher Desktop)
+#### Without Docker registry (import into Rancher Desktop VM)
 
-Якщо kubelet тягне образ з Docker Hub (`pull access denied for add-two-mcp`), а локальний build не видно ноді — збережи образ у tar і завантаж його в **Docker daemon всередині VM** Rancher Desktop через `rdctl shell` (той самий store, який використовує Kubernetes):
+If kubelet tries Docker Hub (`pull access denied for add-two-mcp`) and the local build is not on the node — save a tar and load into the **Docker daemon inside the VM** via `rdctl shell`:
 
 ```bash
-# з кореня Lab2
+# from Lab2 root
 docker build -t add-two-mcp:latest docs/examples/add-two-mcp
 docker save add-two-mcp:latest -o "$HOME/add-two-mcp.tar"
 
@@ -50,32 +50,32 @@ kubectl delete pod -n kagent -l app.kubernetes.io/name=mcp-add-two
 kubectl get pods -n kagent | grep mcp-add-two
 ```
 
-На macOS шлях `$HOME/add-two-mcp.tar` зазвичай доступний у `rdctl shell` під тим самим шляхом. Якщо `load` не знаходить файл — збережи tar у каталог, який точно змонтований у VM, або скопіюй файл у VM вручну.
+On macOS, `$HOME/add-two-mcp.tar` is usually visible in `rdctl shell` at the same path. If `load` cannot find the file, save the tar to a directory that is mounted in the VM or copy manually.
 
-## 2. Застосувати маніфести
+## 2. Apply manifests
 
-Перейди в корінь **Lab2** і виконай **один** із варіантів.
+From **Lab2 root**, run **one** of:
 
-### Варіант A — один файл
+### Option A — single file
 
 ```bash
 kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
 ```
 
-### Варіант B — Kustomize (два файли)
+### Option B — Kustomize
 
 ```bash
 kubectl apply -k manifests/kagent/add-two-mcp
 ```
 
-### Варіант C — по черзі
+### Option C — sequential
 
 ```bash
 kubectl apply -f manifests/kagent/add-two-mcp/mcpserver.yaml
 kubectl apply -f manifests/kagent/add-two-mcp/agent.yaml
 ```
 
-## 3. Перевірка
+## 3. Verification
 
 ```bash
 kubectl get mcpservers,agents -n kagent
@@ -84,34 +84,34 @@ kubectl describe mcpserver mcp-add-two -n kagent
 kubectl describe agent add-numbers-agent -n kagent
 ```
 
-Очікується: поди MCP у `Running`, агент у статусі **Ready** / **Accepted** (залежно від версії CRD).
+Expected: MCP pods `Running`, agent **Ready** / **Accepted** (depends on CRD version).
 
-## 4. Відкрити kagent UI
+## 4. Open kagent UI
 
 ```bash
 kubectl -n agentgateway-system port-forward svc/agentgateway-external 8080:80
 ```
 
-Браузер: **http://127.0.0.1:8080/** → обери агента **add-numbers-agent**, перевір чат (*«Склади 17 і 25»*).
+Browser: **http://127.0.0.1:8080/** → select **add-numbers-agent**, try chat (*“Add 17 and 25”*).
 
-### Приклад успішного результату
+### Example success
 
-У [`LAB2.md`](../../LAB2.md) (розділ **«Успішний результат»**) є скріншоти: виклик MCP `add_two_numbers`, відповідь у чаті та перевірка подів у k9s — файли в [`images/lab/`](../../images/lab/).
+[`LAB2.md`](../../LAB2.md) (**“Success”** section) has screenshots: MCP `add_two_numbers` call, chat reply, k9s pods — under [`images/lab/`](../../images/lab/).
 
-## 5. Видалити (за потреби)
+## 5. Remove (optional)
 
 ```bash
 kubectl delete -f manifests/kagent/add-two-mcp/all-in-one.yaml
-# або
+# or
 kubectl delete -k manifests/kagent/add-two-mcp
 ```
 
 ## Troubleshooting
 
-### `Failed to create MCP session` / `TaskGroup` у UI
+### `Failed to create MCP session` / `TaskGroup` in UI
 
-1. У блоці `spec.declarative.tools[].mcpServer` має бути повне посилання на CRD, зокрема **`apiGroup: kagent.dev`** поруч із `kind: MCPServer` та `name` (див. [troubleshooting kagent](https://github.com/kagent-dev/kagent/blob/main/docs/troubleshooting.md)).
-2. Перевір поди MCP та контролер:
+1. In `spec.declarative.tools[].mcpServer` include full CRD reference, especially **`apiGroup: kagent.dev`** next to `kind: MCPServer` and `name` (see [kagent troubleshooting](https://github.com/kagent-dev/kagent/blob/main/docs/troubleshooting.md)).
+2. Check MCP pods and controller:
 
    ```bash
    kubectl get pods,mcpserver,agent -n kagent
@@ -119,12 +119,12 @@ kubectl delete -k manifests/kagent/add-two-mcp
    kubectl describe mcpserver mcp-add-two -n kagent
    ```
 
-3. Якщо под MCP у **CrashLoop** / **ImagePullBackOff**:
-   - У маніфесті вже задано **`imagePullPolicy: IfNotPresent`**: для тега `:latest` Kubernetes інакше використовує **`Always`** і намагається стягнути неіснуючий образ з Docker Hub.
-   - Перезбери образ `add-two-mcp:latest` і переконайся, що **Rancher Desktop / k3s** бачить той самий image store, що й `docker build` (див. розділ «1. Зібрати Docker-образ»). Якщо образу все ще немає на ноді — спробуй тег без `latest`, напр. `add-two-mcp:local`, або `imagePullPolicy: Never` лише після того, як образ гарантовано завантажений у runtime кластера.
-   - На **Rancher Desktop** без registry: див. підрозділ **«Без Docker registry (імпорт у VM Rancher Desktop)»** вище (`docker save` → `rdctl shell` → `sudo docker load`).
+3. If MCP pod is **CrashLoop** / **ImagePullBackOff**:
+   - Manifest sets **`imagePullPolicy: IfNotPresent`**: for tag `:latest` Kubernetes may still use **`Always`** and pull a non-existent image from Docker Hub.
+   - Rebuild `add-two-mcp:latest` and ensure **Rancher Desktop / k3s** shares the image store with `docker build` (see section 1). If still missing on the node, try a tag other than `latest`, e.g. `add-two-mcp:local`, or `imagePullPolicy: Never` only after the image is definitely loaded in the cluster runtime.
+   - On **Rancher Desktop** without registry: see **“Without Docker registry”** above (`docker save` → `rdctl shell` → `sudo docker load`).
 
-## Примітки
+## Notes
 
-- Якщо `kubectl explain mcpserver` показує інший `apiVersion` — підлаштуй поля в YAML під свій кластер.
-- Ім’я інструменту в `toolNames` має збігатися з реєстрацією у `server.py` (`add_two_numbers`).
+- If `kubectl explain mcpserver` shows a different `apiVersion`, adjust YAML for your cluster.
+- Tool name in `toolNames` must match `server.py` (`add_two_numbers`).

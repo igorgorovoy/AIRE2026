@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""MCP Server для Lesson Credits — поповнення, списання уроків (English. Mary).
+"""MCP server for Lesson Credits — top-ups and deductions (English. Mary).
 
-Потребує доступ до storage: local (.env) або lakeFS (STORAGE_BACKEND=lakefs, LAKEFS_*).
-Запуск з кореня проєкту:
+Requires storage: local (.env) or lakeFS (STORAGE_BACKEND=lakefs, LAKEFS_*).
+Run from project root:
   python mcp-servers-lesson-credits/server.py
   uv run mcp-servers-lesson-credits/server.py
 
 ENV:
-  TASKS_ENV_FILE=.env.mcp — завантажити окремий конфіг (напр. для remote dev).
-  ENABLE_DELETE_TOOLS=1   — увімкнути інструменти видалення (lessons_delete_transaction).
+  TASKS_ENV_FILE=.env.mcp — load alternate config (e.g. remote dev).
+  ENABLE_DELETE_TOOLS=1   — enable delete tools (lessons_delete_transaction).
 """
 
 import os
@@ -36,7 +36,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     "lesson-credits",
-    instructions="MCP сервер для операцій поповнення та списання уроків (lesson credits). Календар English. Mary. Tools: balance, top-up, deduct, delete transaction.",
+    instructions="MCP server for lesson credit top-ups and deductions. Calendar English. Mary. Tools: balance, top-up, deduct, delete transaction.",
 )
 
 
@@ -70,29 +70,29 @@ def _create_calendar_event(calendar_id: str, title: str, created_at: str, descri
 
 @mcp.tool()
 def lessons_list_calendars() -> str:
-    """Показати календарі з lesson tracking (English. Mary). Повертає id та name для вибору calendar_id."""
+    """List calendars with lesson tracking (English. Mary). Returns id and name for calendar_id."""
     store = _get_calendar_store()
     calendars = store.list_calendars()
     lesson_cals = [c for c in calendars if _has_lesson_tracking(c)]
     if not lesson_cals:
-        return "Немає календарів з lesson tracking. Додайте lesson_tracking_enabled або календар 'English. Mary'."
+        return "No calendars with lesson tracking. Add lesson_tracking_enabled or an 'English. Mary' calendar."
     lines = [f"- {c.get('name', '?')} (id: {c.get('id', '?')})" for c in lesson_cals]
     return "\n".join(lines)
 
 
 @mcp.tool()
 def lessons_get_balance(calendar_id: str) -> str:
-    """Отримати баланс та останні транзакції для календаря з lesson tracking."""
+    """Get balance and recent transactions for a lesson-tracking calendar."""
     store = _get_calendar_store()
     cal = store.get_calendar(calendar_id)
     if not cal:
-        return f"Календар {calendar_id} не знайдено."
+        return f"Calendar {calendar_id} not found."
     if not _has_lesson_tracking(cal):
-        return "Календар не має lesson tracking (потрібен English. Mary або lesson_tracking_enabled)."
+        return "Calendar has no lesson tracking (needs English. Mary or lesson_tracking_enabled)."
     repo = _get_lesson_repo()
     balance, transactions = repo.get_balance(calendar_id)
     recent = transactions[-20:] if transactions else []
-    lines = [f"Баланс: {balance} уроків", "Останні транзакції:"]
+    lines = [f"Balance: {balance} lessons", "Recent transactions:"]
     for tx in reversed(recent):
         t = tx.get("type", "?")
         amt = tx.get("amount", 0)
@@ -103,21 +103,21 @@ def lessons_get_balance(calendar_id: str) -> str:
 
 @mcp.tool()
 def lessons_top_up(calendar_id: str, amount: int, note: str = "") -> str:
-    """Поповнити баланс уроків (напр. після оплати пакету). amount — кількість уроків."""
+    """Top up lesson balance (e.g. after package payment). amount — number of lessons."""
     if amount <= 0:
-        return "amount має бути > 0"
+        return "amount must be > 0"
     store = _get_calendar_store()
     cal = store.get_calendar(calendar_id)
     if not cal:
-        return f"Календар {calendar_id} не знайдено."
+        return f"Calendar {calendar_id} not found."
     if not _has_lesson_tracking(cal):
-        return "Календар не має lesson tracking."
+        return "Calendar has no lesson tracking."
     created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evt = _create_calendar_event(
         calendar_id,
         title="Top up",
         created_at=created_at,
-        description=f"Top up: +{amount} уроків" + (f" — {note}" if note else ""),
+        description=f"Top up: +{amount} lessons" + (f" — {note}" if note else ""),
     )
     repo = _get_lesson_repo()
     try:
@@ -126,28 +126,28 @@ def lessons_top_up(calendar_id: str, amount: int, note: str = "") -> str:
             calendar_event_id=evt["id"] if evt else None,
         )
         balance, _ = repo.get_balance(calendar_id)
-        return f"Поповнено +{amount}. Баланс: {balance}. Transaction id: {tx.get('id', '')}"
+        return f"Topped up +{amount}. Balance: {balance}. Transaction id: {tx.get('id', '')}"
     except ValueError as e:
-        return f"Помилка: {e}"
+        return f"Error: {e}"
 
 
 @mcp.tool()
 def lessons_deduct(calendar_id: str, amount: int = 1, note: str = "") -> str:
-    """Списати уроки (напр. після проведення заняття). amount за замовч. 1."""
+    """Deduct lessons (e.g. after a session). amount defaults to 1."""
     if amount <= 0:
-        return "amount має бути > 0"
+        return "amount must be > 0"
     store = _get_calendar_store()
     cal = store.get_calendar(calendar_id)
     if not cal:
-        return f"Календар {calendar_id} не знайдено."
+        return f"Calendar {calendar_id} not found."
     if not _has_lesson_tracking(cal):
-        return "Календар не має lesson tracking."
+        return "Calendar has no lesson tracking."
     created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evt = _create_calendar_event(
         calendar_id,
         title="Funds write-off",
         created_at=created_at,
-        description=f"Funds write-off: -{amount} уроків" + (f" — {note}" if note else ""),
+        description=f"Funds write-off: -{amount} lessons" + (f" — {note}" if note else ""),
     )
     repo = _get_lesson_repo()
     try:
@@ -156,26 +156,26 @@ def lessons_deduct(calendar_id: str, amount: int = 1, note: str = "") -> str:
             calendar_event_id=evt["id"] if evt else None,
         )
         balance, _ = repo.get_balance(calendar_id)
-        return f"Списано -{amount}. Баланс: {balance}. Transaction id: {tx.get('id', '')}"
+        return f"Deducted -{amount}. Balance: {balance}. Transaction id: {tx.get('id', '')}"
     except ValueError as e:
-        return f"Помилка: {e}"
+        return f"Error: {e}"
 
 
 @mcp.tool()
 def lessons_delete_transaction(calendar_id: str, transaction_id: str) -> str:
-    """Видалити транзакцію (зворотна операція для виправлення помилок). Потребує ENABLE_DELETE_TOOLS=1."""
+    """Delete a transaction (reversal for mistakes). Requires ENABLE_DELETE_TOOLS=1."""
     if not ENABLE_DELETE_TOOLS:
-        return "Видалення вимкнено. Встановіть ENABLE_DELETE_TOOLS=1 в .env."
+        return "Deletes disabled. Set ENABLE_DELETE_TOOLS=1 in .env."
     store = _get_calendar_store()
     cal = store.get_calendar(calendar_id)
     if not cal:
-        return f"Календар {calendar_id} не знайдено."
+        return f"Calendar {calendar_id} not found."
     if not _has_lesson_tracking(cal):
-        return "Календар не має lesson tracking."
+        return "Calendar has no lesson tracking."
     repo = _get_lesson_repo()
     deleted = repo.delete_transaction(calendar_id, transaction_id)
     if not deleted:
-        return f"Транзакцію {transaction_id} не знайдено."
+        return f"Transaction {transaction_id} not found."
     ev_id = deleted.get("calendar_event_id")
     if ev_id:
         try:
@@ -183,7 +183,7 @@ def lessons_delete_transaction(calendar_id: str, transaction_id: str) -> str:
         except Exception:
             pass
     balance, _ = repo.get_balance(calendar_id)
-    return f"Транзакцію видалено. Баланс: {balance}"
+    return f"Transaction deleted. Balance: {balance}"
 
 
 if __name__ == "__main__":

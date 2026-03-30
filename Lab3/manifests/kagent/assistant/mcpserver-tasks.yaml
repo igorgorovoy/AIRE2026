@@ -1,10 +1,10 @@
-# MCP-сервер Task Manager — workspaces, boards, lists, cards, comments, attachments.
-# Образ збирається з кореня agentic-ai-landing-zone
-#   (використовує agents/, core/, scripts/ як локальні модулі).
+# MCP server Task Manager — workspaces, boards, lists, cards, comments, attachments.
+# Image built from agentic-ai-landing-zone root
+#   (uses agents/, core/, scripts/ as local modules).
 # Dockerfile: Lab3/mcp-servers/src/tasks/Dockerfile
 #
-# КОНФІГУРАЦІЯ STORAGE:
-#   Credentials беруться з Secret mcp-tasks-secrets (секрет: secrets.yaml).
+# STORAGE CONFIGURATION:
+#   Credentials from Secret mcp-tasks-secrets (see secrets.yaml).
 ---
 apiVersion: kagent.dev/v1alpha1
 kind: MCPServer

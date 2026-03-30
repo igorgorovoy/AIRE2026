@@ -1,0 +1,32 @@
+# Agent ports in the 14xxx range (assistant 14000, orchestrator 14001).
+services:
+  assistant-agent:
+    build:
+      context: ../..
+      dockerfile: Lab4/a2a-agents/Dockerfile.assistant
+    ports:
+      - "14000:14000"
+    environment:
+      - KB_API_BASE_URL=${KB_API_BASE_URL:-http://host.docker.internal:8000}
+      - KB_API_KEY=${KB_API_KEY:-}
+      - A2A_ASSISTANT_PORT=14000
+      - A2A_PUBLIC_BASE_URL=http://127.0.0.1:14000
+      # Lesson/tasks MCP paths come from the image (Lab3/mcp-servers → /opt/lab3-runtime).
+      # Mount agents/core/scripts via docker-compose.lab3-mcp.yaml + LAB3_AGENTIC_ROOT.
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-local}
+      - ENABLE_DELETE_TOOLS=${ENABLE_DELETE_TOOLS:-0}
+    restart: unless-stopped
+
+  orchestrator-agent:
+    build:
+      context: ../..
+      dockerfile: Lab4/a2a-agents/Dockerfile.orchestrator
+    ports:
+      - "14001:14001"
+    environment:
+      - A2A_ORCHESTRATOR_PORT=14001
+      - A2A_ASSISTANT_URL=http://assistant-agent:14000
+      - A2A_PUBLIC_BASE_URL=http://127.0.0.1:14001
+    depends_on:
+      - assistant-agent
+    restart: unless-stopped

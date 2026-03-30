@@ -1,99 +1,99 @@
-# Лабораторна: #2 (Rancher Desktop + abox)
+# Lab #2 (Rancher Desktop + abox)
 
-Цей документ покриває пункти **2–3** для треку **початківців**, після успішного `make run` / `tofu apply` і `READY` у Flux.
+This document covers items **2–3** for the **beginner** track, after a successful `make run` / `tofu apply` and Flux `READY`.
 
 ---
 
-## 2. Доступ до Flux, kagent UI та agentgateway
+## 2. Access to Flux, kagent UI, and agentgateway
 
-### Flux (стан GitOps)
+### Flux (GitOps status)
 
-#### Веб-інтерфейс: Flux Status Web UI (Flux Operator)
+#### Web UI: Flux Status Web UI (Flux Operator)
 
-**Control Plane Flux Operator** уже містить веб-інтерфейс **Flux Status** (огляд GitOps / стану Flux). За замовчуванням він слухає порт **9080** у поді оператора.
+**Control Plane Flux Operator** includes **Flux Status** (GitOps overview). By default it listens on port **9080** in the operator pod.
 
-Перевір сервіс (ім’я може збігатися з релізом `flux-operator`):
+Find the service (name may match `flux-operator` release):
 
 ```bash
 kubectl get svc -n flux-system
 ```
 
-Типовий доступ з ноутбука (Rancher Desktop):
+Typical access from the laptop (Rancher Desktop):
 
 ```bash
 kubectl -n flux-system port-forward svc/flux-operator 9080:9080
 ```
 
-Відкрий у браузері: **http://127.0.0.1:9080/**
+Open in browser: **http://127.0.0.1:9080/**
 
-Якщо `svc/flux-operator` не знайдено, подивись точне ім’я:
+If `svc/flux-operator` is missing, list exact names:
 
 ```bash
 kubectl get svc -n flux-system -l app.kubernetes.io/name=flux-operator
-# або
+# or
 kubectl get pods -n flux-system -l app.kubernetes.io/name=flux-operator -o wide
 ```
 
-Окремий деплой **лише** UI (без повторного оператора) — за потреби з другого Helm release, див. [flux-operator chart: `web.serverOnly`](https://artifacthub.io/packages/helm/flux-operator/flux-operator).
+Deploy **only** the UI (without another operator) from a second Helm release if needed — see [flux-operator chart: `web.serverOnly`](https://artifacthub.io/packages/helm/flux-operator/flux-operator).
 
-#### CLI та kubectl (без браузера)
+#### CLI and kubectl (no browser)
 
-| Що | Як відкрити |
-|----|-------------|
-| Огляд ресурсів | `bash scripts/flux.sh get all` або `flux get all` (після [налаштування flux у zsh](../README.md#troubleshooting)) |
-| Інтерактивно | `k9s -n flux-system` (якщо встановлено) |
-| Події / деталі | `kubectl get kustomization,helmrelease,ocirepository -n flux-system` |
+| What | How |
+|------|-----|
+| Resource overview | `bash scripts/flux.sh get all` or `flux get all` (after [flux setup in zsh](../README.md#troubleshooting)) |
+| Interactive | `k9s -n flux-system` (if installed) |
+| Events / details | `kubectl get kustomization,helmrelease,ocirepository -n flux-system` |
 
-Метрики source-controller (не UI):
+Source-controller metrics (not UI):
 
 ```bash
 kubectl -n flux-system port-forward svc/source-controller 9090:9090
 # http://127.0.0.1:9090/metrics
 ```
 
-### Kagent UI + agentgateway (одна точка входу)
+### Kagent UI + agentgateway (single entry)
 
-Трафік іде через **Gateway** `agentgateway-external` і **HTTPRoute** `kagent` (`/` → UI `:8080`, `/api` → controller `:8083`).
+Traffic goes through **Gateway** `agentgateway-external` and **HTTPRoute** `kagent` (`/` → UI `:8080`, `/api` → controller `:8083`).
 
-На Rancher Desktop **LoadBalancer** часто лишається `<pending>`. Найстабільніший доступ:
+On Rancher Desktop **LoadBalancer** often stays `<pending>`. Most stable access:
 
 ```bash
 kubectl -n agentgateway-system port-forward svc/agentgateway-external 8080:80
 ```
 
-Відкрий у браузері: **http://127.0.0.1:8080/** — це **kagent UI** через agentgateway.
+Open: **http://127.0.0.1:8080/** — **kagent UI** via agentgateway.
 
-Альтернатива (якщо NodePort доступний з хоста):
+Alternative (if NodePort is reachable from the host):
 
 ```bash
 kubectl get svc -n agentgateway-system agentgateway-external
-# спробуй curl до NodePort на 80, напр. http://127.0.0.1:<nodePort>/
+# try curl to NodePort on 80, e.g. http://127.0.0.1:<nodePort>/
 ```
 
-CLI-дашборд від kagent (якщо встановлено `kagent` локально):
+kagent CLI dashboard (if `kagent` is installed locally):
 
 ```bash
 kagent dashboard
 ```
 
-(див. [документацію kagent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool).)
+(see [kagent docs](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool).)
 
-**agentgateway** як компонент — це контролер + той самий Gateway; окремого “адмін-UI” у мінімальному HelmRelease немає: діагностика через `kubectl get gateway,httproute -A` і логи подів у `agentgateway-system`.
+**agentgateway** is the controller + Gateway; there is no separate “admin UI” in a minimal HelmRelease — use `kubectl get gateway,httproute -A` and pod logs in `agentgateway-system`.
 
 ---
 
-## 3. Модель, декларативний MCP tool server та агент
+## 3. Model, declarative MCP tool server, and agent
 
-### 3.1 Підключити модель (OpenAI за замовчуванням)
+### 3.1 Connect a model (OpenAI by default)
 
-У `releases/kagent.yaml` задано провайдер `openAI` і ключ **`OPENAI_API_KEY`**. Створи Secret у namespace `kagent` (ім’я залежить від Helm chart; перевір після встановлення):
+`releases/kagent.yaml` uses provider `openAI` and **`OPENAI_API_KEY`**. Create a Secret in namespace `kagent` (name depends on the Helm chart; verify after install):
 
 ```bash
 kubectl get helmrelease kagent -n kagent -o yaml | grep -i secret
 kubectl get pods,secret -n kagent
 ```
 
-Типовий варіант — secret з ключем `OPENAI_API_KEY`:
+Typical pattern — secret with key `OPENAI_API_KEY`:
 
 ```bash
 kubectl create secret generic kagent-provider-openai -n kagent \
@@ -101,48 +101,48 @@ kubectl create secret generic kagent-provider-openai -n kagent \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Якщо реліз очікує **інше** ім’я Secret — подивись values у HelmRelease або документацію чарту kagent `0.7.23` і підстав відповідне ім’я в `kubectl patch` / `HelmRelease.values`.
+If the release expects a **different** Secret name — check HelmRelease values or kagent chart `0.7.23` docs and patch accordingly.
 
-Переконайся, що є **ModelConfig** (часто `default-model-config` з прикладів kagent):
+Ensure a **ModelConfig** exists (often `default-model-config`):
 
 ```bash
 kubectl get modelconfigs -n kagent
 ```
 
-Детальніше: [Your First Agent](https://kagent.dev/docs/kagent/getting-started/first-agent).
+More: [Your First Agent](https://kagent.dev/docs/kagent/getting-started/first-agent).
 
-### 3.2 Декларативний MCP server
+### 3.2 Declarative MCP server
 
-Створи ресурс **`MCPServer`** (`kagent.dev/v1alpha1` або актуальна версія в кластері):
+Create **`MCPServer`** (`kagent.dev/v1alpha1` or your cluster version):
 
 ```bash
 kubectl api-resources | grep -i mcp
 ```
 
-Загальні варіанти: готовий пакет через `uvx` / `npx` ([приклад із `mcp-server-fetch`](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)) або **власний образ** з FastMCP ([kmcp: deploy server](https://kagent.dev/docs/kmcp/deploy/server)).
+Options: packaged server via `uvx` / `npx` ([example with `mcp-server-fetch`](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)) or **custom image** with FastMCP ([kmcp: deploy server](https://kagent.dev/docs/kmcp/deploy/server)).
 
-#### Приклад для лабораторної: MCP «скласти два числа»
+#### Lab example: MCP “add two numbers”
 
-У репозиторії є:
+In this repo:
 
-- код і Dockerfile: [`docs/examples/add-two-mcp/`](../examples/add-two-mcp/) — інструмент **`add_two_numbers(a, b)`** на Python (FastMCP);
-- **канонічні маніфести** та покроковий деплой: [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md).
+- code and Dockerfile: [`docs/examples/add-two-mcp/`](../examples/add-two-mcp/) — tool **`add_two_numbers(a, b)`** (Python FastMCP);
+- **canonical manifests** and steps: [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md).
 
-Файли в `manifests/kagent/add-two-mcp/`:
+Files under `manifests/kagent/add-two-mcp/`:
 
-| Файл | Призначення |
-|------|-------------|
-| `all-in-one.yaml` | `MCPServer` + `Agent` одним `kubectl apply` |
-| `mcpserver.yaml` / `agent.yaml` | окремо, якщо потрібен поетапний деплой |
+| File | Purpose |
+|------|---------|
+| `all-in-one.yaml` | `MCPServer` + `Agent` in one `kubectl apply` |
+| `mcpserver.yaml` / `agent.yaml` | separate, staged deploy |
 | `kustomization.yaml` | `kubectl apply -k manifests/kagent/add-two-mcp` |
 
-1. Зібрати образ (з **кореня Lab2**):
+1. Build image (from **Lab2 root**):
 
    ```bash
    docker build -t add-two-mcp:latest docs/examples/add-two-mcp
    ```
 
-   **Rancher Desktop без registry:** якщо після `kubectl apply` под MCP у `ImagePullBackOff`, завантаж образ у VM через `rdctl` (повна послідовність у [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md), підрозділ «Без Docker registry»):
+   **Rancher Desktop without registry:** if the MCP pod is `ImagePullBackOff` after `kubectl apply`, load the image into the VM via `rdctl` (full steps in [`manifests/kagent/add-two-mcp/README.md`](../manifests/kagent/add-two-mcp/README.md), subsection “Without Docker registry”):
 
    ```bash
    docker save add-two-mcp:latest -o "$HOME/add-two-mcp.tar"
@@ -151,15 +151,15 @@ kubectl api-resources | grep -i mcp
    kubectl get pods -n kagent | grep mcp-add-two
    ```
 
-2. Застосувати маніфести (див. повну інструкцію в README каталогу маніфестів):
+2. Apply manifests (see manifest README):
 
    ```bash
    kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
    ```
 
-   Або одним файлом через симлінк (те саме): [`docs/examples/add-two-mcp/k8s.yaml`](../examples/add-two-mcp/k8s.yaml) → `all-in-one.yaml`.
+   Or symlink: [`docs/examples/add-two-mcp/k8s.yaml`](../examples/add-two-mcp/k8s.yaml) → `all-in-one.yaml`.
 
-   Фрагмент **`MCPServer`** (ім’я інструменту має збігатися з `server.py` — тут `add_two_numbers`):
+   **`MCPServer`** fragment (tool name must match `server.py` — here `add_two_numbers`):
 
    ```yaml
    apiVersion: kagent.dev/v1alpha1
@@ -179,22 +179,22 @@ kubectl api-resources | grep -i mcp
      transportType: stdio
    ```
 
-3. Перевірка:
+3. Verify:
 
    ```bash
    kubectl get mcpservers -n kagent
    kubectl get pods -n kagent | grep -i add-two
    ```
 
-   `apiVersion` для `MCPServer`/`Agent` підлаштуй під `kubectl explain mcpserver` / `kubectl explain agent`, якщо кластер на іншій версії CRD.
+   Adjust `apiVersion` for `MCPServer`/`Agent` per `kubectl explain mcpserver` / `kubectl explain agent` if CRD versions differ.
 
-### 3.3 Декларативний агент
+### 3.3 Declarative agent
 
-Створи **`Agent`** з `spec.type: Declarative`, посиланням на `modelConfig` і `tools` → твій **`MCPServer`** з переліком `toolNames`.
+Create **`Agent`** with `spec.type: Declarative`, `modelConfig`, and `tools` → your **`MCPServer`** with `toolNames`.
 
-#### Приклад: агент «скласти два числа»
+#### Example: “add two numbers” agent
 
-Агент використовує той самий `MCPServer` `mcp-add-two` і лише інструмент `add_two_numbers`:
+Uses `MCPServer` `mcp-add-two` and tool `add_two_numbers` only:
 
 ```yaml
 apiVersion: kagent.dev/v1alpha2
@@ -203,14 +203,14 @@ metadata:
   name: add-numbers-agent
   namespace: kagent
 spec:
-  description: Агент, який складає два числа через MCP-інструмент add_two_numbers.
+  description: Agent that adds two numbers via MCP tool add_two_numbers.
   type: Declarative
   declarative:
     modelConfig: default-model-config
     systemMessage: |
-      Ти допоміжний асистент. У тебе є інструмент add_two_numbers(a, b) — сума двох цілих чисел.
-      Коли користувач просить додати, скласти або підсумувати два числа, викликай цей інструмент з відповідними a та b.
-      Якщо числа не вказані чітко — уточни. Відповідай у Markdown і коротко поясни результат.
+      You are a helpful assistant. You have tool add_two_numbers(a, b) — sum of two integers.
+      When the user asks to add, sum, or combine two numbers, call this tool with a and b.
+      If numbers are unclear, ask. Reply in Markdown and briefly explain the result.
     tools:
       - type: McpServer
         mcpServer:
@@ -221,66 +221,65 @@ spec:
             - add_two_numbers
 ```
 
-Застосування (поточний каталог — корінь **Lab2**):
+Apply (current dir — **Lab2 root**):
 
 ```bash
 kubectl apply -f manifests/kagent/add-two-mcp/all-in-one.yaml
 ```
 
-(Еквівалентно: `kubectl apply -f docs/examples/add-two-mcp/k8s.yaml` — симлінк на той самий файл.)
+(Same as: `kubectl apply -f docs/examples/add-two-mcp/k8s.yaml`.)
 
-Перевірка:
+Verify:
 
 ```bash
 kubectl get agents -n kagent
 kubectl describe agent add-numbers-agent -n kagent
 ```
 
-Чат у UI — після port-forward на порт **8080** (див. вище); вибери агента **add-numbers-agent** і спробуй запит на кшталт: *«Склади 17 і 25»*.
+Chat in UI — after port-forward to **8080** (above); select **add-numbers-agent** and try e.g. *“Add 17 and 25”*.
 
-Додатково: [Use MCP servers and tools in kagent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool).
-
----
-
-## Скріншоти
-
-Знімки лежать у каталозі репозиторію **`images/lab/`** (оригінали можна зберегти з macOS у `~/Movies/Screenshot … .png` і скопіювати сюди).
-
-### Успішний результат (kagent + MCP `add_two_numbers`)
-
-Після налаштування моделі, Secret з `OPENAI_API_KEY`, деплою `mcp-add-two` та агента `add-numbers-agent` очікується така поведінка:
-
-1. **kagent UI** — запит *«склади 8 та 77»*, виклик інструмента `add_two_numbers` з `a: 8`, `b: 77`, результат **85** і текстова відповідь агента.
-
-   ![kagent: успішний виклик add_two_numbers (8 + 77 = 85)](images/lab/screenshot-success-160403.png)
-
-2. **kagent UI** — кілька успішних діалогів (у т.ч. додатковий приклад з від’ємним числом).
-
-   ![kagent: кілька успішних запитів до add-numbers-agent](images/lab/screenshot-success-160445.png)
-
-3. **k9s** — поди в namespace `kagent` у стані `Running` / `Ready`, зокрема `mcp-add-two` та `add-numbers-agent`.
-
-   ![k9s: поди kagent (mcp-add-two, add-numbers-agent)](images/lab/screenshot-success-160451.png)
+More: [Use MCP servers and tools in kagent](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool).
 
 ---
 
-### Інші кроки лабораторної
+## Screenshots
 
-1. ![Скріншот 2](images/lab/screenshot-120856.png)
-2. ![Скріншот 3](images/lab/screenshot-121048.png)
-3. ![Скріншот 4](images/lab/screenshot-121315.png)
+Images live in **`images/lab/`** (you can copy from macOS `~/Movies/Screenshot … .png`).
 
+### Success (kagent + MCP `add_two_numbers`)
 
-4. ![Скріншот 7](images/lab/screenshot-122350.png)
+After model Secret with `OPENAI_API_KEY`, deploy `mcp-add-two` and `add-numbers-agent`:
 
-5. ![Скріншот 9](images/lab/screenshot-125000.png)
-6. ![Скріншот 10](images/lab/screenshot-125010.png)
-7. ![Скріншот 11](images/lab/screenshot-131531.png)
-8. ![Скріншот 12](images/lab/screenshot-131538.png)
+1. **kagent UI** — prompt *“add 8 and 77”*, tool `add_two_numbers` with `a: 8`, `b: 77`, result **85**.
+
+   ![kagent: successful add_two_numbers (8 + 77 = 85)](images/lab/screenshot-success-160403.png)
+
+2. **kagent UI** — multiple successful turns (including negative number).
+
+   ![kagent: multiple successful prompts to add-numbers-agent](images/lab/screenshot-success-160445.png)
+
+3. **k9s** — pods in `kagent` `Running` / `Ready`, including `mcp-add-two` and `add-numbers-agent`.
+
+   ![k9s: kagent pods (mcp-add-two, add-numbers-agent)](images/lab/screenshot-success-160451.png)
 
 ---
 
-## Корисні посилання
+### Other lab steps
 
-- [kagent — перший MCP tool](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)
+1. ![Screenshot 2](images/lab/screenshot-120856.png)
+2. ![Screenshot 3](images/lab/screenshot-121048.png)
+3. ![Screenshot 4](images/lab/screenshot-121315.png)
+
+4. ![Screenshot 7](images/lab/screenshot-122350.png)
+
+5. ![Screenshot 9](images/lab/screenshot-125000.png)
+6. ![Screenshot 10](images/lab/screenshot-125010.png)
+7. ![Screenshot 11](images/lab/screenshot-131531.png)
+8. ![Screenshot 12](images/lab/screenshot-131538.png)
+
+---
+
+## References
+
+- [kagent — first MCP tool](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool)
 - [abox README](../README.md) — bootstrap, Flux, troubleshooting

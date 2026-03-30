@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Flux CD CLI wrapper: використовує лише бінарник з Homebrew (opt/flux),
-# щоб НЕ підхоплювати застарілий `flux` з PATH (~/.local/bin тощо).
+# Flux CD CLI wrapper: prefers the Homebrew binary (opt/flux) so we do NOT pick up
+# an outdated `flux` from PATH (~/.local/bin, etc.).
 #
-# Явний шлях: FLUX_BIN=/шлях/до/flux bash scripts/flux.sh version
+# Explicit path: FLUX_BIN=/path/to/flux bash scripts/flux.sh version
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ candidates=()
 
 if command -v brew >/dev/null 2>&1; then
   hb="$(brew --prefix 2>/dev/null || true)"
-  # Типове місце Flux CD після `brew install fluxcd/tap/flux`
+  # Typical Flux CD location after `brew install fluxcd/tap/flux`
   [[ -n "$hb" ]] && candidates+=("${hb}/opt/flux/bin/flux")
   for formula in flux "fluxcd/tap/flux"; do
     pfx="$(brew --prefix "${formula}" 2>/dev/null || true)"
@@ -22,7 +22,7 @@ if command -v brew >/dev/null 2>&1; then
   done
 fi
 
-# Фолбек без brew (типові префікси)
+# Fallback without brew (common prefixes)
 candidates+=(
   /opt/homebrew/opt/flux/bin/flux
   /usr/local/opt/flux/bin/flux
@@ -30,7 +30,7 @@ candidates+=(
   /usr/local/bin/flux
 )
 
-# Без declare -A (bash 3.2 на macOS): уникаємо повторів шляху
+# No declare -A (bash 3.2 on macOS): dedupe candidate paths
 _tried=""
 for c in "${candidates[@]}"; do
   [[ -z "$c" || ! -x "$c" ]] && continue
@@ -39,7 +39,7 @@ for c in "${candidates[@]}"; do
   exec "$c" "$@"
 done
 
-echo "flux CLI (Flux CD) не знайдено або не встановлено через Homebrew." >&2
-echo "Встановлення: brew install fluxcd/tap/flux" >&2
-echo "Потім: export FLUX_BIN=\"\$(brew --prefix)/opt/flux/bin/flux\"" >&2
+echo "flux CLI (Flux CD) not found or not installed via Homebrew." >&2
+echo "Install: brew install fluxcd/tap/flux" >&2
+echo "Then: export FLUX_BIN=\"\$(brew --prefix)/opt/flux/bin/flux\"" >&2
 exit 1

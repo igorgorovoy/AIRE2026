@@ -1,5 +1,5 @@
-# kagent ModelConfig v1alpha2: agentgateway як OpenAI-сумісний LLM провайдер
-# Схема: kubectl get crd modelconfigs.kagent.dev -o yaml
+# kagent ModelConfig v1alpha2: agentgateway as an OpenAI-compatible LLM provider
+# Schema: kubectl get crd modelconfigs.kagent.dev -o yaml
 ---
 apiVersion: kagent.dev/v1alpha2
 kind: ModelConfig

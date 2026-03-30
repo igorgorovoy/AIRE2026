@@ -1,67 +1,67 @@
 # EVALS.md — AI Review Evaluation Methodology
 
-> Визначає як оцінювати якість AI-рев'ю, що генеруються workflow `ai-review.yml`.
-> Результати публікуються workflow `ai-review-evals.yml` щотижня.
+> Defines how to evaluate AI reviews produced by the `ai-review.yml` workflow.
+> Results are published weekly by `ai-review-evals.yml`.
 
 ---
 
-## Метрики якості
+## Quality metrics
 
-### 1. Precision (Точність)
-**Визначення:** Частка AI-знахідок, що є реальними проблемами.
+### 1. Precision
+**Definition:** Share of AI findings that are real issues.
 
 ```
 Precision = True Positives / (True Positives + False Positives)
 ```
 
-| Оцінка | Precision | Опис |
-|--------|-----------|------|
-| Excellent | ≥ 0.85 | Майже всі знахідки реальні |
-| Good | 0.70–0.84 | Прийнятна якість |
-| Poor | < 0.70 | Забагато false positives |
+| Rating | Precision | Description |
+|--------|-----------|-------------|
+| Excellent | ≥ 0.85 | Almost all findings are valid |
+| Good | 0.70–0.84 | Acceptable quality |
+| Poor | < 0.70 | Too many false positives |
 
-**Вимірювання:** Після merge PR, команда помічає AI-коментарі як `valid` / `false-positive` через GitHub reactions:
+**Measurement:** After a PR merges, mark AI comments as `valid` / `false-positive` via GitHub reactions:
 - 👍 = valid finding
 - 👎 = false positive
 
 ---
 
-### 2. Actionability (Дієвість)
-**Визначення:** Чи призвели AI-коментарі до змін у коді.
+### 2. Actionability
+**Definition:** Whether AI comments led to code changes.
 
 ```
 Actionability = PRs_with_followup_commits / PRs_with_AI_review
 ```
 
-**Вимірювання:** Автоматично — workflow перевіряє чи були commits після AI-рев'ю до merge.
+**Measurement:** Automated — the workflow checks for commits after the AI review before merge.
 
-| Оцінка | Rate | Опис |
-|--------|------|------|
-| Excellent | ≥ 0.40 | Рев'ю призводить до покращень |
-| Good | 0.20–0.39 | Помірний вплив |
-| Poor | < 0.20 | Рев'ю ігнорується |
-
----
-
-### 3. Coverage (Покриття)
-**Визначення:** Чи знайшов AI всі важливі проблеми.
-
-Перевіряється вручну для вибірки PRs:
-- Порівняти з human review тих самих PR
-- Підрахувати Issues, знайдені людиною але пропущені AI
-
-| Оцінка | Miss Rate | Опис |
-|--------|-----------|------|
-| Excellent | ≤ 0.10 | Майже нічого не пропущено |
-| Good | 0.11–0.25 | Прийнятне покриття |
-| Poor | > 0.25 | Багато пропущених проблем |
+| Rating | Rate | Description |
+|--------|------|-------------|
+| Excellent | ≥ 0.40 | Reviews drive improvements |
+| Good | 0.20–0.39 | Moderate impact |
+| Poor | < 0.20 | Reviews ignored |
 
 ---
 
-### 4. Format Compliance (Відповідність формату)
-**Визначення:** Чи дотримується AI структури з `REVIEW.md`.
+### 3. Coverage
+**Definition:** Whether AI found all important issues.
 
-Автоматична перевірка наявності секцій:
+Checked manually on a sample of PRs:
+- Compare with human review on the same PRs
+- Count issues found by humans but missed by AI
+
+| Rating | Miss Rate | Description |
+|--------|-----------|-------------|
+| Excellent | ≤ 0.10 | Almost nothing missed |
+| Good | 0.11–0.25 | Acceptable coverage |
+| Poor | > 0.25 | Many missed issues |
+
+---
+
+### 4. Format Compliance
+**Definition:** Whether AI follows the structure in `REVIEW.md`.
+
+Automatic check for sections:
 - `### Summary` ✓/✗
 - `### 🔴 Critical Issues` ✓/✗
 - `### 🟡 Suggestions` ✓/✗
@@ -70,52 +70,52 @@ Actionability = PRs_with_followup_commits / PRs_with_AI_review
 
 ---
 
-### 5. Score Distribution (Розподіл оцінок)
-**Визначення:** Розподіл PR scores (1-10) для виявлення bias.
+### 5. Score Distribution
+**Definition:** Distribution of PR scores (1–10) to detect bias.
 
-Бажаний розподіл:
+Target distribution:
 ```
-Score 1-4:  ~10% (серйозні проблеми)
-Score 5-6:  ~20% (потребує роботи)
-Score 7-8:  ~50% (добрий стан)
-Score 9-10: ~20% (відмінно)
+Score 1-4:  ~10% (serious issues)
+Score 5-6:  ~20% (needs work)
+Score 7-8:  ~50% (good shape)
+Score 9-10: ~20% (excellent)
 ```
 
-Проблема: якщо >60% отримують 9-10 — AI занадто м'який.
-Проблема: якщо >40% отримують 1-4 — AI занадто суворий.
+Warning: if >60% get 9–10 — AI may be too lenient.
+Warning: if >40% get 1–4 — AI may be too harsh.
 
 ---
 
-## Eval Workflow Алгоритм
+## Eval workflow algorithm
 
-Workflow `ai-review-evals.yml` виконує щотижня:
+`ai-review-evals.yml` runs weekly:
 
 ```python
-1. Отримати merged PRs за минулий тиждень (GitHub API)
-2. Для кожного PR з AI-рев'ю:
-   a. Перевірити наявність всіх секцій (Format Compliance)
-   b. Підрахувати commits після AI-рев'ю (Actionability)
-   c. Зібрати 👍/👎 reactions на AI-коментарі (Precision proxy)
-   d. Витягти Score з тексту рев'ю
-3. Агрегувати метрики за тиждень
-4. Порівняти з попереднім тижнем (тренд)
-5. Викликати GitHub Models для meta-evaluation:
-   - надати 3 приклади рев'ю
-   - попросити оцінити якість за критеріями вище
-6. Опублікувати звіт як GitHub Issue з label 'ai-evals'
+1. Fetch merged PRs for the past week (GitHub API)
+2. For each PR with an AI review:
+   a. Check all sections exist (Format Compliance)
+   b. Count commits after AI review (Actionability)
+   c. Collect 👍/👎 on AI comments (Precision proxy)
+   d. Extract Score from review text
+3. Aggregate weekly metrics
+4. Compare with the previous week (trend)
+5. Call GitHub Models for meta-evaluation:
+   - provide 3 sample reviews
+   - ask for quality rating against the criteria above
+6. Publish report as a GitHub Issue with label 'ai-evals'
 ```
 
 ---
 
-## Формат звіту (публікується як Issue)
+## Report format (published as Issue)
 
 ```markdown
 ## 📊 AI Review Evals — Week YYYY-WW
 
-### Метрики тижня
+### Weekly metrics
 
-| Метрика | Значення | Тренд | Оцінка |
-|---------|----------|-------|--------|
+| Metric | Value | Trend | Rating |
+|--------|-------|-------|--------|
 | PRs reviewed | N | ↑/↓/= | — |
 | Format compliance | X% | ↑/↓/= | 🟢/🟡/🔴 |
 | Actionability | X% | ↑/↓/= | 🟢/🟡/🔴 |
@@ -123,37 +123,37 @@ Workflow `ai-review-evals.yml` виконує щотижня:
 | Avg score given | X.X | ↑/↓/= | 🟢/🟡/🔴 |
 
 ### Meta-evaluation (GitHub Models)
-[AI-оцінка якості 3 випадкових рев'ю тижня]
+[AI quality assessment of 3 random reviews from the week]
 
-### Рекомендації
-[Що покращити у REVIEW.md або workflow]
+### Recommendations
+[What to improve in REVIEW.md or the workflow]
 
-### Приклади рев'ю тижня
-- 🏆 Best: PR #N — [причина]
-- ⚠️ Worst: PR #N — [причина]
+### Examples from the week
+- 🏆 Best: PR #N — [reason]
+- ⚠️ Worst: PR #N — [reason]
 ```
 
 ---
 
-## Baseline (початкові очікування)
+## Baseline (initial expectations)
 
-При запуску системи (перші 4 тижні):
+For the first 4 weeks after launch:
 
-| Метрика | Мінімальний baseline |
-|---------|---------------------|
+| Metric | Minimum baseline |
+|--------|------------------|
 | Format compliance | ≥ 95% |
 | Actionability | ≥ 20% |
 | Avg score | 6.0–8.5 |
 
-Якщо будь-яка метрика нижче baseline — автоматично створюється Issue з `bug` label.
+If any metric is below baseline, an Issue with the `bug` label is created automatically.
 
 ---
 
-## Як позначати AI-коментарі
+## How to label AI comments
 
-Реагуй на AI-рев'ю коментарі:
-- 👍 — знахідка реальна і корисна
-- 👎 — false positive / неактуально
-- 🎉 — виключно корисна рекомендація (для best-of колекції)
+React to AI review comments:
+- 👍 — valid and useful finding
+- 👎 — false positive / not applicable
+- 🎉 — exceptionally useful suggestion (for a best-of collection)
 
-Це дозволяє автоматично вимірювати Precision без ручного аналізу.
+This enables Precision measurement without manual analysis.

@@ -1,8 +1,8 @@
-# Lab 3 — Персональний асистент із трьома MCP-серверами
+# Lab 3 — Personal assistant with three MCP servers
 
-> **Мета:** розгорнути в Kubernetes (через kagent) агента-асистента, який через три MCP-сервери має доступ до Knowledge Base, обліку уроків та менеджера задач.
+> **Goal:** deploy an assistant agent in Kubernetes (via kagent) that uses three MCP servers for Knowledge Base, lesson credits, and task management.
 
-## Архітектура
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -21,30 +21,30 @@
     │knowledge│ │lesson-  │ │                 │
     │ -base   │ │credits  │ │ Task Manager    │
     │         │ │         │ │ workspaces,     │
-    │ Obsidian│ │ English │ │ boards, cards   │
-    │ vault   │ │  ***   │ │ comments, etc.  │
+    │ Obsidian│ │ lessons │ │ boards, cards   │
+    │ vault   │ │ calendar│ │ comments, etc.  │
     └────┬────┘ └────┬────┘ └────────┬────────┘
          │           │               │
     HTTP API    local/lakeFS    local/lakeFS
     (backend)    storage          storage
 ```
 
-## Структура Lab3
+## Lab 3 layout
 
 ```
 Lab3/
-├── LAB3.md                                ← цей файл
+├── LAB3.md                                ← this file
 ├── mcp-servers/
 │   └── src/
 │       ├── knowledge-base/
-│       │   ├── Dockerfile                 ← автономний образ
-│       │   └── server.py                  ← копія з agentic-ai-landing-zone
+│       │   ├── Dockerfile                 ← standalone image
+│       │   └── server.py                  ← copy from agentic-ai-landing-zone
 │       ├── lesson-credits/
-│       │   ├── Dockerfile                 ← збірка з кореня ALZ
-│       │   └── server.py                  ← копія з agentic-ai-landing-zone
+│       │   ├── Dockerfile                 ← build from ALZ root
+│       │   └── server.py                  ← copy from agentic-ai-landing-zone
 │       └── tasks/
-│           ├── Dockerfile                 ← збірка з кореня ALZ
-│           └── server.py                  ← копія з agentic-ai-landing-zone
+│           ├── Dockerfile                 ← build from ALZ root
+│           └── server.py                  ← copy from agentic-ai-landing-zone
 └── manifests/
     └── kagent/
         └── assistant/
@@ -53,50 +53,50 @@ Lab3/
             ├── mcpserver-lesson-credits.yaml
             ├── mcpserver-tasks.yaml
             ├── agent.yaml
-            ├── all-in-one.yaml            ← 3 MCPServer + Agent в одному файлі
+            ├── all-in-one.yaml            ← 3 MCPServer + Agent in one file
             └── kustomization.yaml
 ```
 
-## MCP-сервери
+## MCP servers
 
-| Образ | Джерело | Залежності |
-|-------|---------|------------|
+| Image | Source | Dependencies |
+|-------|--------|--------------|
 | `mcp-knowledge-base:latest` | `mcp-servers/src/knowledge-base/` | `mcp[cli]`, `python-dotenv` |
-| `mcp-lesson-credits:latest` | корінь `agentic-ai-landing-zone` | + `langgraph`, `langchain-core`, `agents/`, `core/` |
-| `mcp-tasks:latest` | корінь `agentic-ai-landing-zone` | + `langgraph`, `langchain-core`, `agents/`, `core/`, `scripts/` |
+| `mcp-lesson-credits:latest` | root of `agentic-ai-landing-zone` | + `langgraph`, `langchain-core`, `agents/`, `core/` |
+| `mcp-tasks:latest` | root of `agentic-ai-landing-zone` | + `langgraph`, `langchain-core`, `agents/`, `core/`, `scripts/` |
 
-### Змінні середовища
+### Environment variables
 
-| Сервер | Змінна | Значення за замовч. | Опис |
-|--------|--------|---------------------|------|
-| knowledge-base | `KB_API_BASE_URL` | `http://localhost:8000` | URL KB backend (viz/backend) |
-| knowledge-base | `API_KEY` | `""` | X-API-Key header (якщо потрібен) |
-| lesson-credits | `STORAGE_BACKEND` | `local` | `local` або `lakefs` |
-| tasks | `STORAGE_BACKEND` | `local` | `local` або `lakefs` |
-| tasks | `ENABLE_DELETE_TOOLS` | `0` | `1` — увімкнути інструменти видалення |
-| lesson-credits, tasks | `LAKEFS_ENDPOINT` | — | для `STORAGE_BACKEND=lakefs` |
-| lesson-credits, tasks | `LAKEFS_ACCESS_KEY_ID` | — | Access Key ID для lakeFS |
-| lesson-credits, tasks | `LAKEFS_SECRET_ACCESS_KEY` | — | Secret Key для lakeFS |
-| lesson-credits, tasks | `LAKEFS_REPOSITORY` | — | назва репозиторію lakeFS |
-| lesson-credits, tasks | `LAKEFS_BRANCH` | `main` | гілка lakeFS |
+| Server | Variable | Default | Description |
+|--------|----------|---------|-------------|
+| knowledge-base | `KB_API_BASE_URL` | `http://localhost:8000` | KB backend URL |
+| knowledge-base | `API_KEY` | `""` | X-API-Key header (if required) |
+| lesson-credits | `STORAGE_BACKEND` | `local` | `local` or `lakefs` |
+| tasks | `STORAGE_BACKEND` | `local` | `local` or `lakefs` |
+| tasks | `ENABLE_DELETE_TOOLS` | `0` | `1` — enable delete tools |
+| lesson-credits, tasks | `LAKEFS_ENDPOINT` | — | for `STORAGE_BACKEND=lakefs` |
+| lesson-credits, tasks | `LAKEFS_ACCESS_KEY_ID` | — | lakeFS access key ID |
+| lesson-credits, tasks | `LAKEFS_SECRET_ACCESS_KEY` | — | lakeFS secret key |
+| lesson-credits, tasks | `LAKEFS_REPOSITORY` | — | lakeFS repository name |
+| lesson-credits, tasks | `LAKEFS_BRANCH` | `main` | lakeFS branch |
 
-## Передумови
+## Prerequisites
 
-1. **kagent** задеплоєний у namespace `kagent` (CRDs: `mcpservers.kagent.dev`, `agents.kagent.dev`).
-2. **ModelConfig** `default-model-config` і Secret з API key провайдера (OpenAI або інший).
-3. **Docker** і доступ до Kubernetes (`kubectl`).
-4. (Опційно) **agentic-ai-landing-zone** проєкт — для збірки `lesson-credits` і `tasks` образів.
+1. **kagent** deployed in namespace `kagent` (CRDs: `mcpservers.kagent.dev`, `agents.kagent.dev`).
+2. **ModelConfig** `default-model-config` and a Secret with the provider API key (OpenAI or other).
+3. **Docker** and Kubernetes access (`kubectl`).
+4. (Optional) **agentic-ai-landing-zone** repo — to build `lesson-credits` and `tasks` images.
 
 ```bash
-# Перевірка kagent
+# Verify kagent
 kubectl get modelconfigs,mcpservers,agents -n kagent
 ```
 
-## Крок 1 — Зібрати Docker-образи
+## Step 1 — Build Docker images
 
-> **Передумова:** переконайтесь що Docker запущено та доступний з командного рядка (`docker info`). Для Rancher Desktop достатньо щоб застосунок був відкритий.
+> **Prerequisite:** Docker is running and available from the CLI (`docker info`). For Rancher Desktop, the app should be running.
 
-Визначте шляхи до репозиторіїв:
+Set repository paths:
 
 ```bash
 export LAB3=/path/to/AIRE2026/Lab3
@@ -123,9 +123,9 @@ docker build -t mcp-tasks:latest \
   -f "$LAB3/mcp-servers/src/tasks/Dockerfile" "$ALZ"
 ```
 
-### Rancher Desktop / k3s (без реєстру)
+### Rancher Desktop / k3s (no registry)
 
-Якщо Kubernetes не бачить образи після `docker build` — завантажте їх у VM:
+If Kubernetes cannot see images after `docker build`, load them into the VM:
 
 ```bash
 for img in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
@@ -134,31 +134,31 @@ for img in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
 done
 ```
 
-## Крок 2 — Створити Secret із credentials
+## Step 2 — Create credentials Secret
 
-MCP-сервери отримують конфігурацію через механізм `secretRefs` у kagent. Кожен ключ Secret стає окремою змінною середовища у контейнері (тому кожна змінна — окремий ключ у `stringData`).
+MCP servers receive configuration via kagent `secretRefs`. Each Secret key becomes a separate environment variable in the container (one variable = one key in `stringData`).
 
-Скопіюйте приклад і заповніть реальними значеннями:
+Copy the example and fill in real values:
 
 ```bash
 cp manifests/kagent/assistant/secrets-example.yaml \
    manifests/kagent/assistant/secrets.yaml
-# відредагуйте secrets.yaml — вкажіть реальні endpoint, ключі тощо
+# edit secrets.yaml — set real endpoints, keys, etc.
 ```
 
-Застосуйте Secret **до** маніфестів MCP-серверів:
+Apply the Secret **before** MCP server manifests:
 
 ```bash
 kubectl apply -f manifests/kagent/assistant/secrets.yaml
 ```
 
-> `secrets.yaml` захищено `.gitignore` — він не потрапить до репо.
+> `secrets.yaml` is in `.gitignore` — it will not be committed.
 
-### Структура Secret
+### Secret structure
 
-> **Важливо:** kagent інжектує кожен ключ Secret як окрему env var. Використовуйте **один ключ = одна змінна** (не multiline `dot-env`).
+> **Important:** kagent injects each Secret key as a separate env var. Use **one key = one variable** (not a multiline `dot-env` blob).
 
-Приклад для lesson-credits / tasks:
+Example for lesson-credits / tasks:
 
 ```yaml
 apiVersion: v1
@@ -170,13 +170,13 @@ type: Opaque
 stringData:
   STORAGE_BACKEND: "lakefs"
   LAKEFS_ENDPOINT: "http://<lakefs-host>:8001"
-  LAKEFS_ACCESS_KEY_ID: "<access-key>"        # замініть на реальний ключ
-  LAKEFS_SECRET_ACCESS_KEY: "<secret-key>"    # замініть на реальний ключ
+  LAKEFS_ACCESS_KEY_ID: "<access-key>"        # replace with real key
+  LAKEFS_SECRET_ACCESS_KEY: "<secret-key>"    # replace with real key
   LAKEFS_REPOSITORY: "<repo-name>"
   LAKEFS_BRANCH: "main"
 ```
 
-Приклад для knowledge-base:
+Example for knowledge-base:
 
 ```yaml
 apiVersion: v1
@@ -187,50 +187,50 @@ metadata:
 type: Opaque
 stringData:
   KB_API_BASE_URL: "http://<service-ip-or-hostname>:8000"
-  API_KEY: "<optional-api-key>"               # замініть на реальний ключ
+  API_KEY: "<optional-api-key>"               # replace if needed
 ```
 
-> Готовий шаблон: `manifests/kagent/assistant/secrets-example.yaml`. Скопіюйте у `secrets.yaml` і замініть `<...>` на реальні значення. Файл захищено `.gitignore`.
+> Full template: `manifests/kagent/assistant/secrets-example.yaml`. Copy to `secrets.yaml` and replace `<...>` with real values.
 
-## Крок 3 — Налаштувати KB_API_BASE_URL
+## Step 3 — Configure KB_API_BASE_URL
 
-Якщо knowledge-base backend знаходиться поза кластером — перевірте `KB_API_BASE_URL` у Secret `mcp-knowledge-base-secrets` (приклад структури у розділі вище).
+If the knowledge-base backend is outside the cluster, set `KB_API_BASE_URL` in Secret `mcp-knowledge-base-secrets` (see structure above).
 
-## Крок 5 — Застосувати маніфести
+## Step 5 — Apply manifests
 
-З **кореня Lab3** — обрати **один** варіант:
+From **Lab3 root**, choose **one** option:
 
 ```bash
-# Варіант A — один файл
+# Option A — single file
 kubectl apply -f manifests/kagent/assistant/all-in-one.yaml
 
-# Варіант B — Kustomize
+# Option B — Kustomize
 kubectl apply -k manifests/kagent/assistant
 
-# Варіант C — по черзі
+# Option C — one by one
 kubectl apply -f manifests/kagent/assistant/mcpserver-knowledge-base.yaml
 kubectl apply -f manifests/kagent/assistant/mcpserver-lesson-credits.yaml
 kubectl apply -f manifests/kagent/assistant/mcpserver-tasks.yaml
 kubectl apply -f manifests/kagent/assistant/agent.yaml
 ```
 
-## Крок 6 — Перевірка деплойменту
+## Step 6 — Verify deployment
 
-### 6.1 Загальний стан ресурсів
+### 6.1 Overall resource status
 
 ```bash
 kubectl get mcpservers,agents -n kagent
 kubectl get pods -n kagent | grep -E 'mcp-|NAME'
 ```
 
-Очікується: поди у стані `Running`, агент `Ready` / `Accepted`.
+Expected: pods `Running`, agent `Ready` / `Accepted`.
 
-### 6.2 Перевірка env vars у подах (storage backend)
+### 6.2 Env vars in pods (storage backend)
 
-Критично переконатись що секрети правильно інжектовано і `STORAGE_BACKEND=lakefs`:
+Confirm secrets are injected and `STORAGE_BACKEND=lakefs`:
 
 ```bash
-# Перевірте кожен MCP-сервер
+# Check each MCP server
 for svc in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
   POD=$(kubectl get pod -n kagent -l app.kubernetes.io/name=$svc -o name | head -1)
   echo "=== $svc ==="
@@ -238,7 +238,7 @@ for svc in mcp-knowledge-base mcp-lesson-credits mcp-tasks; do
 done
 ```
 
-Очікуваний вивід для lesson-credits / tasks:
+Expected for lesson-credits / tasks:
 ```
 STORAGE_BACKEND=lakefs
 LAKEFS_ENDPOINT=http://...
@@ -246,209 +246,190 @@ LAKEFS_ACCESS_KEY_ID=...
 ENABLE_DELETE_TOOLS=0
 ```
 
-### 6.3 Логи та деталі
+### 6.3 Logs and details
 
 ```bash
-# Деталі CRD
+# CRD details
 kubectl describe mcpserver mcp-knowledge-base -n kagent
 kubectl describe mcpserver mcp-lesson-credits  -n kagent
 kubectl describe mcpserver mcp-tasks           -n kagent
 kubectl describe agent     assistant-agent     -n kagent
 
-# Логи MCP-серверів
+# MCP server logs
 kubectl logs -n kagent -l app.kubernetes.io/name=mcp-knowledge-base  --tail=30
 kubectl logs -n kagent -l app.kubernetes.io/name=mcp-lesson-credits  --tail=30
 kubectl logs -n kagent -l app.kubernetes.io/name=mcp-tasks           --tail=30
 ```
 
-### 6.4 Функціональна перевірка через UI
+### 6.4 Functional check via UI
 
-Після переходу в kagent UI → assistant-agent виконайте тестові запити:
+In kagent UI → **assistant-agent**, try:
 
-| Сервер | Тестовий запит | Очікуваний результат |
-|--------|---------------|---------------------|
-| knowledge-base | "Скільки документів у базі знань?" | Число документів з LakeFS/backend |
-| lesson-credits | "Скільки уроків залишилось?" | Баланс з LakeFS |
-| tasks | "Покажи всі workspaces" | Список воркспейсів |
+| Server | Sample prompt | Expected |
+|--------|---------------|----------|
+| knowledge-base | "How many documents are in the knowledge base?" | Count from LakeFS/backend |
+| lesson-credits | "How many lessons are left?" | Balance from LakeFS |
+| tasks | "Show all workspaces" | List of workspaces |
 
-Якщо відповіді відповідають реальним даним — деплоймент успішний.
+If answers match real data, deployment succeeded.
 
-## Крок 7 — Відкрити kagent UI
+## Step 7 — Open kagent UI
 
-Прямий доступ (Rancher Desktop):
+Direct access (Rancher Desktop):
 
 ```
 http://192.168.64.4:8089/
 ```
 
-Або через port-forward (якщо зовнішній IP недоступний):
+Or port-forward if external IP is unavailable:
 
 ```bash
 kubectl -n kagent port-forward svc/kagent-ui 8089:8080
 ```
 
-Браузер: **http://127.0.0.1:8089/** → оберіть **assistant-agent**.
+Browser: **http://127.0.0.1:8089/** → select **assistant-agent**.
 
-> **Примітка щодо порту 8089:** Gateway налаштовано на порту `8089` замість стандартного `80`. Причина: порт `80` конфліктує з SSH-тунелем Rancher Desktop — pod `svclb-agentgateway-external` не стартує через `EADDRINUSE`. Якщо після перезавантаження кластеру UI недоступний — Flux CD міг повернути конфігурацію назад; дивіться розділ Troubleshooting → "kagent UI недоступний".
+> **Port 8089 note:** Gateway listens on `8089` instead of default `80` because port `80` conflicts with the Rancher Desktop SSH tunnel — `svclb-agentgateway-external` fails with `EADDRINUSE`. After a cluster reboot, Flux may reset the config; see Troubleshooting → "kagent UI unavailable".
 
-### Приклади запитів для перевірки
+### Sample prompts
 
 **Knowledge Base:**
 ```
-Знайди документ про AWS Skill Builder у knowledge base
-Скільки документів у базі знань?
+Find the document about AWS Skill Builder in the knowledge base
+How many documents are in the knowledge base?
 ```
 
 **Lesson Credits:**
 ```
-Скільки уроків English. *** залишилось?
-Спиши 1 урок для English. ***
+How many lessons are left for English. *** ?
+Deduct 1 lesson for English. ***
 ```
 
 **Task Manager:**
 ```
-Покажи всі workspaces
-Створи картку "Перевірити Lab3" у списку To Do на дошці Work
+Show all workspaces
+Create a card "Verify Lab3" in list To Do on board Work
 ```
 
-## Видалення
+## Teardown
 
 ```bash
 kubectl delete -f manifests/kagent/assistant/all-in-one.yaml
-# або
+# or
 kubectl delete -k manifests/kagent/assistant
 ```
 
 ## Troubleshooting
 
-Детальний troubleshooting → [`manifests/kagent/assistant/README.md`](manifests/kagent/assistant/README.md).
+See [`manifests/kagent/assistant/README.md`](manifests/kagent/assistant/README.md) for detailed troubleshooting.
 
-### kagent UI недоступний (`Unable to connect` / `404`)
+### kagent UI unavailable (`Unable to connect` / `404`)
 
-Flux CD регулярно перезаписує Gateway назад на порт `80` (читає з OCI-артефакту, не з Git). Порт `80` конфліктує з SSH-тунелем Rancher Desktop — ServiceLB pod не може стартувати.
+Flux CD may reset the Gateway to port `80` (OCI artifact, not Git). Port `80` conflicts with the Rancher Desktop SSH tunnel — ServiceLB pod cannot start.
 
 ```bash
-# Зупинити Flux від перезаписів
 flux suspend kustomization releases
 
-# Перевести Gateway на порт 8089
 kubectl patch gateway agentgateway-external -n agentgateway-system \
   --type='json' -p='[{"op":"replace","path":"/spec/listeners/0/port","value":8089}]'
 
-# Перезапустити проксі
 kubectl rollout restart deployment agentgateway-external -n agentgateway-system
 
-# Перевірка
 curl -s -o /dev/null -w "%{http_code}" http://192.168.64.4:8089/
-# Очікується: 200
+# expect: 200
 ```
 
-> Після перезавантаження кластеру потрібно повторити ці 3 команди.
+> After a cluster reboot, repeat these steps.
 
-### MCP-сервер запустився, але повертає порожні дані / "local storage"
+### MCP server runs but returns empty data / "local storage"
 
-Симптом: агент звертається до MCP, але дані не відповідають тому що видно у веб-інтерфейсі сховища.
+Symptom: agent calls MCP but data does not match the storage web UI.
 
-Причина: `STORAGE_BACKEND=local` з Dockerfile перекриває значення з Secret, якщо Secret застосовано неправильно.
+Cause: `STORAGE_BACKEND=local` from Dockerfile overrides Secret if Secret was applied incorrectly.
 
 ```bash
-# 1. Перевірте що Secret існує і містить правильні ключі
 kubectl get secret mcp-lesson-credits-secrets -n kagent -o yaml
 
-# 2. Перевірте env vars у живому поді (має бути STORAGE_BACKEND=lakefs)
 POD=$(kubectl get pod -n kagent -l app.kubernetes.io/name=mcp-lesson-credits -o name | head -1)
 kubectl exec -n kagent "$POD" -- env | grep STORAGE
 
-# 3. Якщо STORAGE_BACKEND=local — видаліть і перестворіть Secret з окремими ключами
 kubectl delete secret mcp-lesson-credits-secrets -n kagent
 kubectl apply -f manifests/kagent/assistant/secrets.yaml
 
-# 4. Перезапустіть деплоймент
 kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
 ```
 
-### Сервіс недоступний / под у стані CrashLoopBackOff
+### Service down / pod CrashLoopBackOff
 
 ```bash
-# Подивитись events пода
 kubectl describe pod -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
-
-# Останні логи до краш-ресету
 kubectl logs -n kagent -l app.kubernetes.io/name=mcp-lesson-credits --previous --tail=50
 ```
 
-Типові причини:
-- Неправильний `image:` tag — образ не знайдено (`ErrImagePull`)
-- Відсутній Secret — `secretRef` посилається на неіснуючий ресурс
-- Port 80 conflict (ServiceLB) — дивіться розділ "kagent UI недоступний"
+Common causes:
+- Wrong `image:` tag — `ErrImagePull`
+- Missing Secret — `secretRef` points to a missing resource
+- Port 80 conflict — see "kagent UI unavailable"
 
-### Швидка діагностика
+### Quick diagnostics
 
 ```bash
-# Контролер kagent
 kubectl logs -n kagent -l app.kubernetes.io/name=kagent-controller --tail=100
-
-# Перезапустити под MCP після переробки образу
 kubectl rollout restart deployment -n kagent -l app.kubernetes.io/name=mcp-lesson-credits
 ```
 
 ---
 
-## Демонстрація роботи агента
+## Demo session
 
-Сесія після підключення MCP серверів до LakeFS (24 березня 2026).
+Session after connecting MCP servers to LakeFS (March 24, 2026).
 
-### Стан кластера (k9s)
+### Cluster state (k9s)
 
-Всі 31 поди у `Running`, три MCP сервери (`mcp-lesson-credits`, `mcp-tasks`, `mcp-knowledge-base`) запущені з 0 рестартів — lakeFS підключено коректно:
+All 31 pods `Running`, three MCP servers with 0 restarts — lakeFS connected:
 
 ![k9s cluster state](docs/screenshots/Screenshot%202026-03-24%20at%2022.45.23.png)
 
-### Запит балансу уроків
+### Lesson balance request
 
-Агент викликає `lessons_list_calendars` та `lessons_get_balance`, отримує актуальні дані з lakeFS:
+Agent calls `lessons_list_calendars` and `lessons_get_balance`:
 
-![Запит балансу](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.00.png)
+![Balance request](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.00.png)
 
-### Відповідь: баланс та пропозиція дій
+### Reply: balance and suggested actions
 
-Агент повертає поточний баланс (3 уроки) і пропонує варіанти:
+![Agent reply](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.07.png)
 
-![Відповідь агента](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.07.png)
+### Transaction history
 
-### Історія транзакцій
+Prompt *"show payment history"* — agent lists operations:
 
-Запит `покажи історію платежів` — агент показує всі операції:
+![History start](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.14.png)
 
-![Початок історії](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.14.png)
+### Top-up
 
-### Поповнення балансу
+Prompt *"add 5 more lessons and show the table"* — `lessons_top_up`, balance becomes 8:
 
-Запит `поповни ще на 5 занять та покажи таблицю` — агент викликає `lessons_top_up`, баланс стає 8:
+![Top-up](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.51.png)
 
-![Поповнення](docs/screenshots/Screenshot%202026-03-24%20at%2022.39.51.png)
+### Transaction table after top-up
 
-### Таблиця транзакцій після поповнення
+![Transaction table](docs/screenshots/Screenshot%202026-03-24%20at%2022.40.00.png)
 
-Повна таблиця: поповнення +12 у лютому, 9 списань і нове поповнення +5 сьогодні:
+### Task Manager — project list
 
-![Таблиця транзакцій](docs/screenshots/Screenshot%202026-03-24%20at%2022.40.00.png)
+Prompt *"show current projects"* — `tasks_list_workspaces`:
 
-### Task Manager — список проєктів
-
-Запит `покажи список поточних проєктів` — агент викликає `tasks_list_workspaces` і повертає workspaces з lakeFS:
-
-![Список проєктів](docs/screenshots/Screenshot%202026-03-24%20at%2022.42.08.png)
+![Project list](docs/screenshots/Screenshot%202026-03-24%20at%2022.42.08.png)
 
 ---
 
-
 ### ModuleNotFoundError: agents / core
 
-Образ зібрано не з кореня `agentic-ai-landing-zone`. Переконайтесь:
+Image was not built from `agentic-ai-landing-zone` root. Verify:
+
 ```bash
-# Перевірка правильного контексту збірки
 docker build -t mcp-lesson-credits:latest \
   -f "$LAB3/mcp-servers/src/lesson-credits/Dockerfile" \
-  "$ALZ"   # ← контекст = корінь ALZ
+  "$ALZ"   # ← build context = ALZ root
 ```
